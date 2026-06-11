@@ -1,2 +1,0 @@
-Test 1 (lower): Could not find the 'customername' column of 'feedback' in the schema cache
-Test 2 (snake): Could not find the 'customer_name' column of 'feedback' in the schema cache

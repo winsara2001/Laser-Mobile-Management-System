@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
-import { User, Mail, Save, Lock, Camera, Check, Trash2 } from 'lucide-react';
+import { User, Mail, Save, Lock, Camera, Check, Trash2, Shield, Settings, Key, Eye } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 
 const Profile = () => {
@@ -60,8 +61,6 @@ const Profile = () => {
 
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                
-                // Compress highly to fit comfortably in a TEXT column
                 const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
                 setProfile({ ...profile, avatarUrl: dataUrl });
             };
@@ -74,7 +73,7 @@ const Profile = () => {
         e.preventDefault();
         
         if (password && password !== confirmPassword) {
-            setMessage('Passwords do not match!');
+            setMessage('Protocol Error: Passphrase mismatch detected.');
             return;
         }
 
@@ -82,7 +81,6 @@ const Profile = () => {
             setLoading(true);
             setMessage(null);
             
-            // 1. Update Auth Data (Email / Password)
             const authUpdates = {};
             if (newEmail !== user.email) authUpdates.email = newEmail;
             if (password) authUpdates.password = password;
@@ -92,7 +90,6 @@ const Profile = () => {
                 if (authError) throw authError;
             }
 
-            // 2. Update Public Profile Table (Name / Avatar)
             const updates = {
                 ...profile,
                 id: user.id,
@@ -105,17 +102,15 @@ const Profile = () => {
             const { error: profileError } = await supabase.from('profiles').upsert(updates);
             if (profileError) throw profileError;
 
-            let successMsg = 'Profile updated successfully!';
-            if (authUpdates.email) successMsg += ' A confirmation link may have been sent to your new email address.';
+            let successMsg = 'Identity Core Synchronized successfully.';
+            if (authUpdates.email) successMsg += ' Verification sequence initiated for new address.';
             
             setMessage(successMsg);
             setTimeout(() => setMessage(null), 6000);
             
-            // Wipe password fields for security
             setPassword('');
             setConfirmPassword('');
 
-            // Force global event so layout avatar refreshes
             const updatedUser = {
                 ...JSON.parse(localStorage.getItem('user')),
                 name: profile.fullName,
@@ -126,157 +121,202 @@ const Profile = () => {
             window.dispatchEvent(new Event('authStatusChanged'));
 
         } catch (error) {
-            setMessage('Error: ' + error.message);
+            setMessage('Critical Error: ' + error.message);
         } finally {
             setLoading(false);
         }
     };
 
-    if (loading && !profile) return <div className="text-center p-10 text-slate-500">Loading your settings...</div>;
+    if (loading && !profile) return <div className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-500 text-center py-40 animate-pulse italic">Retrieving Operator Identity...</div>;
 
-    const isSuccess = message && !message.includes('Error') && !message.includes('not match');
+    const isSuccess = message && !message.includes('Error') && !message.includes('mismatch');
 
     return (
-        <div className="max-w-3xl mx-auto p-4 sm:p-6 lg:p-8">
-            <h1 className="text-3xl font-bold mb-2 text-slate-900 dark:text-white">Account Settings</h1>
-            <p className="text-slate-500 dark:text-slate-400 mb-8">Manage your profile information, password, and security preferences.</p>
+        <div className="max-w-4xl mx-auto space-y-12 pb-20">
+            {/* Header */}
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 bg-white/50 dark:bg-white/[0.02] p-10 rounded-[2.5rem] border border-white/40 dark:border-white/5 backdrop-blur-md shadow-2xl shadow-black/5">
+                <div>
+                    <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight italic flex items-center gap-4">
+                        <Settings className="text-[#7bc24c]" size={36} />
+                        Personal Command Center
+                    </h1>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mt-3 flex items-center gap-3">
+                        <Shield size={14} className="text-[#7bc24c]" />
+                        Identity Hash: {user?.id.substring(0, 16)}...
+                    </p>
+                </div>
+            </div>
 
-            <div className="bg-white dark:bg-[#161925] rounded-3xl shadow-sm border border-slate-200 dark:border-[#1E202C] overflow-hidden">
-                
-                {message && (
-                    <div className={clsx("p-4 m-6 rounded-xl flex items-center gap-3 border", isSuccess ? "bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border-green-200 dark:border-green-500/20" : "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/20")}>
-                        {isSuccess ? <Check size={20} /> : <div className="w-5 h-5 rounded-full border-2 border-current flex items-center justify-center font-bold text-xs">!</div>}
-                        <span className="font-medium text-sm">{message}</span>
-                    </div>
-                )}
-
-                <form onSubmit={updateProfile} autoComplete="off" className="p-6 sm:p-10 space-y-8">
-                    
-                    {/* Avatar Upload Section */}
-                    <div className="flex flex-col sm:flex-row items-center gap-6 pb-8 border-b border-slate-200 dark:border-[#1E202C]">
-                        <div className="relative group">
-                            <div className="w-32 h-32 rounded-full overflow-hidden bg-slate-100 dark:bg-[#1E202C] ring-4 ring-white dark:ring-[#161925] shadow-lg flex items-center justify-center">
-                                {profile?.avatarUrl ? (
-                                    <img src={profile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                                ) : (
-                                    <User size={64} className="text-slate-300 dark:text-slate-600" />
-                                )}
-                            </div>
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current.click()}
-                                className="absolute bottom-0 right-0 w-10 h-10 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-105"
-                                title="Change Avatar"
-                            >
-                                <Camera size={18} />
-                            </button>
-                            {profile?.avatarUrl && (
-                                <button
-                                    type="button"
-                                    onClick={() => setProfile({ ...profile, avatarUrl: null })}
-                                    className="absolute bottom-0 left-0 w-10 h-10 bg-red-500 hover:bg-red-400 text-white rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-105"
-                                    title="Remove Avatar"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
+            <div className="relative">
+                {/* Feedback Toast */}
+                <AnimatePresence>
+                    {message && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                            className={clsx(
+                                "p-6 mb-8 rounded-[1.5rem] flex items-center gap-4 border backdrop-blur-xl shadow-2xl",
+                                isSuccess 
+                                    ? "bg-[#7bc24c]/10 text-[#7bc24c] border-[#7bc24c]/20" 
+                                    : "bg-red-500/10 text-red-500 border-red-500/20"
                             )}
-                            <input 
-                                type="file" 
-                                accept="image/*" 
-                                ref={fileInputRef} 
-                                onChange={handleAvatarChange} 
-                                className="hidden" 
-                            />
-                        </div>
-                        <div className="text-center sm:text-left">
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Profile Picture</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
-                                Click the camera icon to upload a custom avatar. JPG, GIF or PNG. Max size of 800K.
-                            </p>
-                        </div>
-                    </div>
-
-                    {/* General Information */}
-                    <div className="space-y-6">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            <User size={20} className="text-blue-500" />
-                            Personal Information
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Full Name</label>
-                                <input
-                                    type="text"
-                                    value={profile?.fullName || ''}
-                                    onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
-                                    className="w-full bg-slate-50 dark:bg-[#0F111A] border border-slate-200 dark:border-[#1E202C] text-slate-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 transition-all font-medium"
-                                    placeholder="Enter full name"
-                                />
+                        >
+                            <div className={clsx("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", isSuccess ? "bg-[#7bc24c]/10" : "bg-red-500/10")}>
+                                {isSuccess ? <Check size={20} /> : <Shield size={20} />}
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Email Address</label>
-                                <div className="relative">
-                                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                    <input
-                                        type="email"
-                                        value={newEmail}
-                                        onChange={(e) => setNewEmail(e.target.value)}
-                                        className="w-full bg-slate-50 dark:bg-[#0F111A] border border-slate-200 dark:border-[#1E202C] text-slate-900 dark:text-white rounded-xl pl-11 pr-4 py-3 focus:outline-none focus:border-blue-500 transition-all font-medium"
-                                        placeholder="your.email@example.com"
-                                    />
+                            <span className="font-black text-[10px] uppercase tracking-widest leading-relaxed">{message}</span>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                <form onSubmit={updateProfile} autoComplete="off" className="space-y-10">
+                    
+                    {/* Core Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                        
+                        {/* Avatar Cell */}
+                        <motion.div 
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="lg:col-span-1 bg-white/70 dark:bg-[#161925]/60 backdrop-blur-2xl rounded-[2.5rem] p-10 border border-white/60 dark:border-white/5 shadow-2xl shadow-black/5 flex flex-col items-center justify-center space-y-8"
+                        >
+                            <div className="relative group">
+                                <div className="w-48 h-48 rounded-[3rem] overflow-hidden bg-slate-100 dark:bg-[#0F111A] border-4 border-slate-50 dark:border-white/10 shadow-inner flex items-center justify-center transform group-hover:scale-105 transition-all duration-700">
+                                    {profile?.avatarUrl ? (
+                                        <img src={profile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <User size={80} className="text-slate-300 dark:text-slate-700" />
+                                    )}
                                 </div>
+                                <div className="absolute -bottom-4 -right-4 flex flex-col gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current.click()}
+                                        className="w-14 h-14 bg-[#7bc24c] hover:bg-[#6ab33d] text-white rounded-2xl flex items-center justify-center shadow-2xl shadow-[#7bc24c]/30 hover:scale-110 active:scale-90 transition-all"
+                                    >
+                                        <Camera size={24} />
+                                    </button>
+                                    {profile?.avatarUrl && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setProfile({ ...profile, avatarUrl: null })}
+                                            className="w-14 h-14 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-2xl flex items-center justify-center backdrop-blur-lg border border-red-500/20 transition-all hover:scale-110"
+                                        >
+                                            <Trash2 size={24} />
+                                        </button>
+                                    )}
+                                </div>
+                                <input type="file" accept="image/*" ref={fileInputRef} onChange={handleAvatarChange} className="hidden" />
                             </div>
+
+                            <div className="text-center">
+                                <h3 className="text-base font-black text-slate-900 dark:text-white italic uppercase tracking-wider">Visual Signature</h3>
+                                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-2 uppercase tracking-widest">Operator Uplink Interface</p>
+                            </div>
+                        </motion.div>
+
+                        {/* Informational Cells */}
+                        <div className="lg:col-span-2 space-y-10">
+                            
+                            {/* Identity Payload */}
+                            <motion.div 
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                className="bg-white/70 dark:bg-[#161925]/60 backdrop-blur-2xl rounded-[2.5rem] p-10 border border-white/60 dark:border-white/5 shadow-2xl shadow-black/5 space-y-8"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-[#7bc24c]/10 flex items-center justify-center">
+                                        <User size={20} className="text-[#7bc24c]" />
+                                    </div>
+                                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest italic leading-none">Entity Metadata</h3>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest italic ml-1">Legal Identity Name</label>
+                                        <input
+                                            type="text"
+                                            value={profile?.fullName || ''}
+                                            onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-[#0F111A] border border-slate-200 dark:border-white/5 text-slate-900 dark:text-white rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-[#7bc24c]/50 transition-all font-black italic text-sm shadow-inner"
+                                            placeholder="Operator Name"
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest italic ml-1">Communication Uplink</label>
+                                        <div className="relative">
+                                            <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-[#7bc24c]" size={18} />
+                                            <input
+                                                type="email"
+                                                value={newEmail}
+                                                onChange={(e) => setNewEmail(e.target.value)}
+                                                className="w-full bg-slate-50 dark:bg-[#0F111A] border border-slate-200 dark:border-white/5 text-slate-900 dark:text-white rounded-2xl pl-16 pr-6 py-4 focus:outline-none focus:ring-2 focus:ring-[#7bc24c]/50 transition-all font-black italic text-sm shadow-inner"
+                                                placeholder="email@node.com"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </motion.div>
+
+                            {/* Security Logic */}
+                            <motion.div 
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.1 }}
+                                className="bg-white/70 dark:bg-[#161925]/60 backdrop-blur-2xl rounded-[2.5rem] p-10 border border-white/60 dark:border-white/5 shadow-2xl shadow-black/5 space-y-8"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
+                                        <Key size={20} className="text-orange-500" />
+                                    </div>
+                                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest italic leading-none">Cipher Management</h3>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest italic ml-1">New Access Token</label>
+                                        <input
+                                            type="password"
+                                            autoComplete="new-password"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-[#0F111A] border border-slate-200 dark:border-white/5 text-slate-900 dark:text-white rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-[#7bc24c]/50 shadow-inner"
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest italic ml-1">Verify Change</label>
+                                        <input
+                                            type="password"
+                                            autoComplete="new-password"
+                                            value={confirmPassword}
+                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                            className="w-full bg-slate-50 dark:bg-[#0F111A] border border-slate-200 dark:border-white/5 text-slate-900 dark:text-white rounded-2xl px-6 py-4 focus:outline-none focus:ring-2 focus:ring-[#7bc24c]/50 shadow-inner"
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
+                                </div>
+                            </motion.div>
                         </div>
                     </div>
 
-                    {/* Password Updates */}
-                    <div className="space-y-6 pt-6 border-t border-slate-200 dark:border-[#1E202C]">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                            <Lock size={20} className="text-blue-500" />
-                            Security
-                        </h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Leave these fields completely blank if you do not wish to change your password.</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">New Password</label>
-                                <input
-                                    type="password"
-                                    autoComplete="new-password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-[#0F111A] border border-slate-200 dark:border-[#1E202C] text-slate-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 transition-all"
-                                    placeholder="••••••••"
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Confirm New Password</label>
-                                <input
-                                    type="password"
-                                    autoComplete="new-password"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    className="w-full bg-slate-50 dark:bg-[#0F111A] border border-slate-200 dark:border-[#1E202C] text-slate-900 dark:text-white rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 transition-all"
-                                    placeholder="••••••••"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="pt-8 flex justify-end gap-4">
+                    {/* Submission Command */}
+                    <div className="flex justify-end gap-6 pt-10 border-t border-white/10">
                         <button
                             type="button"
                             onClick={() => window.location.reload()}
-                            className="px-6 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1E202C] transition-colors font-semibold"
+                            className="px-10 py-5 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 hover:text-white transition-all"
                         >
-                            Reset
+                            Reset Logic
                         </button>
                         <button
                             type="submit"
                             disabled={loading}
-                            className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-500 font-semibold transition-colors disabled:opacity-50 shadow-lg shadow-blue-500/30"
+                            className="bg-[#7bc24c] hover:bg-[#6ab33d] text-white px-12 py-5 rounded-[2rem] flex items-center gap-4 transition-all shadow-2xl shadow-[#7bc24c]/30 font-black text-xs uppercase tracking-[0.4em] active:scale-95 disabled:opacity-50"
                         >
-                            <Save size={18} />
-                            {loading ? 'Saving...' : 'Save Settings'}
+                            <Save size={20} />
+                            {loading ? 'Synchronizing...' : 'Update Core Identity'}
                         </button>
                     </div>
 

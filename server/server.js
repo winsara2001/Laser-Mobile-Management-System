@@ -18,6 +18,10 @@ const connectDB = async () => {
 };
 connectDB();
 
+// Static folder for file uploads
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/inventory', require('./routes/inventoryRoutes'));

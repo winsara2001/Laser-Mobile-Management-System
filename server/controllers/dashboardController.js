@@ -72,6 +72,7 @@ exports.getDashboardStats = async (req, res) => {
             .neq('status', 'completed');
 
         const pendingRepairsCount = repairErr ? 0 : (repairs?.length || 0);
+        const pendingRepairsList = repairErr ? [] : repairs;
 
         // 3. Low Stock Alerts (< 5 items)
         const lowStockCount = products.filter(p => (p.stock || 0) < 5).length;
@@ -101,10 +102,23 @@ exports.getDashboardStats = async (req, res) => {
             stockAlertsCount: lowStockCount,
             fulfilledTodayCount,
 
+            // Low stock item details for popup
+            lowStockItems: products
+                .filter(p => (p.stock || 0) < 5)
+                .map(p => ({
+                    id: p.id,
+                    name: (p.name || '').replace(/\s+/g, ' ').trim(),
+                    stock: p.stock || 0,
+                    category: p.category || '',
+                    supplier: p.supplier || ''
+                })),
+
             // Lists
             paymentMethods,
             recentSales,
-            recentFeedback
+            recentFeedback,
+            todaySales,
+            pendingRepairsList
         });
     } catch (err) {
         console.error('Dashboard Stats Error:', err.message);

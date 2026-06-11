@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, User, ShoppingCart, Sun, Moon, Menu, X } from 'lucide-react';
+import { LogOut, User, ShoppingCart, Sun, Moon, Menu, X, Search, ChevronDown } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useCart } from '../context/CartContext';
 import { useTheme } from '../context/ThemeContext';
 import { useCurrency } from '../context/CurrencyContext';
 import CartDrawer from './CartDrawer';
+import ProductsModal from './ProductsModal';
 import Logo from './Logo';
 
 const Navbar = () => {
     const [user, setUser] = useState(null);
     const [isCartOpen, setIsCartOpen] = useState(false);
+    const [isProductsModalOpen, setIsProductsModalOpen] = useState(false);
+    const [selectedBrandCategory, setSelectedBrandCategory] = useState('');
     const [mobileOpen, setMobileOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const { cartCount } = useCart();
@@ -49,21 +52,76 @@ const Navbar = () => {
         localStorage.removeItem('user');
         setUser(null);
         try { await supabase.auth.signOut(); } catch (e) { console.error(e); }
-        navigate('/login');
+        navigate('/');
     };
 
     /* ── Nav links ── */
     const navLinks = [
-        { label: 'Home',     href: '/',           sectionId: null },
-        { label: 'Products', href: '/#products',  sectionId: 'products' },
-        { label: 'Features', href: '/#features',  sectionId: 'features' },
-        { label: 'Support',  href: '/#newsletter', sectionId: 'newsletter' },
+        { label: 'Home', href: '/', sectionId: null },
+        { 
+            label: 'Apple', 
+            href: '/apple', 
+            dropdown: [
+                { label: 'Apple', href: '#', isFilterItem: true },
+                { label: 'iPhone', href: '#', isFilterItem: true },
+                { label: 'Mac', href: '#', isFilterItem: true },
+                { label: 'iPad', href: '#', isFilterItem: true },
+                { label: 'Apple Watch', href: '#', isFilterItem: true },
+                { label: 'Apple Accessories', href: '#', isFilterItem: true },
+            ] 
+        },
+        { 
+            label: 'Android', 
+            href: '/android', 
+            dropdown: [
+                { label: 'Android', href: '#', isFilterItem: true },
+                { label: 'Samsung', href: '#', isFilterItem: true },
+                { label: 'Google Pixel', href: '#', isFilterItem: true },
+                { label: 'Redmi', href: '#', isFilterItem: true },
+                { label: 'Honor', href: '#', isFilterItem: true },
+                { label: 'OnePlus', href: '#', isFilterItem: true },
+                { label: 'Tecno', href: '#', isFilterItem: true },
+                { label: 'Vivo', href: '#', isFilterItem: true },
+                { label: 'Nothing', href: '#', isFilterItem: true },
+                { label: 'Infinix', href: '#', isFilterItem: true },
+                { label: 'Blackview', href: '#', isFilterItem: true },
+            ]
+        },
+        { 
+            label: 'Accessory', 
+            href: '/#products', 
+            sectionId: 'products',
+            dropdown: [
+                { label: 'Accessory', href: '#', isFilterItem: true },
+                { label: 'JBL', href: '#', isFilterItem: true },
+                { label: 'Green Lion', href: '#', isFilterItem: true },
+                { label: 'Porodo', href: '#', isFilterItem: true },
+                { label: 'Anker', href: '#', isFilterItem: true },
+                { label: 'Baseus', href: '#', isFilterItem: true },
+                { label: 'Powerology', href: '#', isFilterItem: true },
+                { label: 'Boya', href: '#', isFilterItem: true },
+            ]
+        },
+        { label: 'Services', href: '/', sectionId: 'features' },
     ];
 
-    /* ── Smart scroll / navigate ── */
-    const handleNavClick = (e, { sectionId }) => {
+    const handleNavClick = (e, link) => {
         e.preventDefault();
         setMobileOpen(false);
+
+        if (link.isFilterItem) {
+            setSelectedBrandCategory(link.label);
+            setIsProductsModalOpen(true);
+            return;
+        }
+
+        if (!link.sectionId) {
+            navigate(link.href);
+            if (link.label === 'Home') {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+            return; 
+        }
 
         const scrollTo = (id) => {
             if (!id) { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
@@ -72,10 +130,10 @@ const Navbar = () => {
         };
 
         if (location.pathname === '/') {
-            scrollTo(sectionId);
+            scrollTo(link.sectionId);
         } else {
             navigate('/');
-            setTimeout(() => scrollTo(sectionId), 350);
+            setTimeout(() => scrollTo(link.sectionId), 350);
         }
     };
 
@@ -93,37 +151,57 @@ const Navbar = () => {
 
                         {/* ── Logo (left) ── */}
                         <div className="flex-shrink-0">
-                            <Link to="/" className="flex items-center h-12 w-56" onClick={() => setMobileOpen(false)}>
+                            <Link to="/" className="flex items-center h-12 w-56" onClick={() => { setMobileOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>
                                 <Logo />
                             </Link>
                         </div>
 
                         {/* ── Center nav links (desktop) ── */}
-                        <div className="hidden md:flex items-center gap-8">
+                        <div className="hidden lg:flex items-center gap-6">
                             {navLinks.map((link) => (
-                                <a
-                                    key={link.label}
-                                    href={link.href}
-                                    onClick={(e) => handleNavClick(e, link)}
-                                    className="nav-link text-white/80 hover:text-white text-sm font-medium tracking-wide transition-colors cursor-pointer"
-                                >
-                                    {link.label}
-                                </a>
+                                <div key={link.label} className="relative group">
+                                    <a
+                                        href={link.href}
+                                        onClick={(e) => {
+                                            if (!link.dropdown) handleNavClick(e, link);
+                                            else e.preventDefault();
+                                        }}
+                                        className="nav-link flex items-center gap-1 text-white/80 hover:text-white text-sm font-medium tracking-wide transition-colors cursor-pointer py-5"
+                                    >
+                                        {link.label}
+                                        {link.dropdown && <span className="opacity-0 w-0 h-0 overflow-hidden">Dropdown</span>}
+                                    </a>
+                                    
+                                    {link.dropdown && (
+                                        <div className="absolute top-14 left-1/2 -translate-x-1/2 mt-1 w-48 bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 py-3">
+                                            {link.dropdown.map((sublink) => (
+                                                <a
+                                                    key={sublink.label}
+                                                    href={sublink.href}
+                                                    onClick={(e) => {
+                                                        if (sublink.sectionId || sublink.isFilterItem) handleNavClick(e, sublink);
+                                                    }}
+                                                    className="block px-5 py-2 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-colors"
+                                                >
+                                                    {sublink.label}
+                                                </a>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             ))}
                         </div>
 
                         {/* ── Right icons (desktop) ── */}
                         <div className="hidden md:flex items-center gap-3">
 
-                            {/* Theme toggle */}
+                            {/* Search */}
                             <button
-                                onClick={toggleTheme}
-                                className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-all"
-                                title="Toggle Theme"
+                                className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-all"
+                                aria-label="Search"
                             >
-                                {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                                <Search size={20} />
                             </button>
-
                             {/* Currency */}
                             <select
                                 value={currency}
@@ -235,9 +313,7 @@ const Navbar = () => {
                         <div className="border-t border-white/10 pt-4 flex flex-col gap-3">
                             {/* Theme + Currency */}
                             <div className="flex items-center gap-3">
-                                <button onClick={toggleTheme} className="p-2 text-white/60 hover:text-white">
-                                    {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-                                </button>
+
                                 <select
                                     value={currency}
                                     onChange={(e) => setCurrency(e.target.value)}
@@ -269,6 +345,11 @@ const Navbar = () => {
                 )}
             </nav>
 
+            <ProductsModal 
+                isOpen={isProductsModalOpen} 
+                onClose={() => setIsProductsModalOpen(false)} 
+                brandCategory={selectedBrandCategory} 
+            />
             <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
         </>
     );

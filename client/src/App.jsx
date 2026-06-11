@@ -11,8 +11,8 @@ import SupplierPortal from './pages/SupplierPortal';
 import Feedback from './pages/Feedback';
 import Users from './pages/Users';
 import Dashboard from './pages/Dashboard';
-import Reports from './pages/Reports';
 import LandingPage from './pages/LandingPage';
+import CategoryPage from './pages/CategoryPage';
 import Profile from './pages/Profile';
 import Checkout from './pages/Checkout';
 import Payments from './pages/Payments';
@@ -33,7 +33,12 @@ import UpdatePassword from './pages/UpdatePassword';
 function App() {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const currentToken = localStorage.getItem('token');
+      const isMockToken = currentToken && currentToken.startsWith('mock-');
+
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (isMockToken) return;
+
         localStorage.setItem('token', session.access_token);
 
         // Run asynchronously to avoid Supabase auth lock deadlock
@@ -57,6 +62,8 @@ function App() {
         };
         fetchProfile();
       } else if (event === 'SIGNED_OUT') {
+        if (isMockToken) return;
+
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         window.dispatchEvent(new Event('authStatusChanged'));
@@ -82,6 +89,18 @@ function App() {
                 <LandingPage />
               </>
             } />
+            <Route path="/android" element={
+              <>
+                <Navbar />
+                <CategoryPage type="android" />
+              </>
+            } />
+            <Route path="/apple" element={
+              <>
+                <Navbar />
+                <CategoryPage type="apple" />
+              </>
+            } />
 
             {/* Routes for any logged-in user */}
             <Route element={<UserProtectedRoute />}>
@@ -100,7 +119,6 @@ function App() {
                 <Route path="payments" element={<Payments />} />
                 <Route path="repairs" element={<Repairs />} />
                 <Route path="users" element={<Users />} />
-                <Route path="reports" element={<Reports />} />
                 <Route path="suppliers" element={<Suppliers />} />
                 <Route path="purchase-orders" element={<PurchaseOrders />} />
                 <Route path="supplier-portal" element={<SupplierPortal />} />

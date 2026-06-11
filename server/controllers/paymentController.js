@@ -22,9 +22,9 @@ exports.getPayments = async (req, res) => {
             query = query.gte('date', startDate).lte('date', endDate);
         }
 
-        // Apply search filter (customer name or transaction ID)
+        // Apply search filter (customer name or phone)
         if (search) {
-            query = query.or(`customerName.ilike.%${search}%,id.ilike.%${search}%`);
+            query = query.or(`customerName.ilike.%${search}%,customerPhone.ilike.%${search}%`);
         }
 
         const { data, error } = await query;

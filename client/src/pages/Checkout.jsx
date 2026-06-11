@@ -308,20 +308,25 @@ const Checkout = () => {
 
                         <div className="space-y-4 mb-6 max-h-[40vh] overflow-y-auto pr-2">
                             {cart.map((item) => (
-                                <div key={item.id} className="flex gap-4">
-                                    <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center shrink-0 border border-gray-100">
+                                <div key={item.cartItemId || item.id} className="flex gap-4">
+                                    <div className="w-16 h-16 bg-gray-50 rounded-lg flex items-center justify-center shrink-0 border border-gray-100 p-1">
                                         {item.imageUrl ? (
-                                            <img src={item.imageUrl} alt={item.name} className="w-12 h-12 object-contain" />
+                                            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-contain" />
                                         ) : (
                                             <div className="w-8 h-8 bg-gray-200 rounded-md"></div>
                                         )}
                                     </div>
                                     <div className="flex-1 min-w-0 pt-1">
                                         <h4 className="text-sm font-bold text-gray-900 truncate">{item.name}</h4>
-                                        <p className="text-xs text-gray-500 mt-0.5">Qty: {item.quantity}</p>
+                                        <div className="flex gap-1 mt-1 font-semibold">
+                                            {item.selectedStorage && <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded">{item.selectedStorage}</span>}
+                                            {item.selectedColor && <span className="text-[10px] px-1.5 py-0.5 bg-fuchsia-50 text-fuchsia-600 rounded capitalize">{item.selectedColor}</span>}
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">Qty: {item.quantity}</p>
                                     </div>
-                                    <div className="text-right pt-1 shrink-0">
+                                    <div className="text-right pt-1 shrink-0 flex flex-col justify-between">
                                         <p className="text-sm font-bold text-gray-900">{formatPrice(item.price * item.quantity)}</p>
+                                        <p className="text-[10px] text-gray-400 text-right mt-1">{formatPrice(item.price)} each</p>
                                     </div>
                                 </div>
                             ))}

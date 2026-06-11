@@ -11,7 +11,26 @@ module.exports = async function (req, res, next) {
 
     // Bypass for frontend test token
     if (token.startsWith('mock-token-')) {
-        req.user = { id: '26ac21dd-08ae-46cb-81f1-3ac77dc0d4ec', email: 'admin@example.com' };
+        const parts = token.replace('mock-token-', '').split('|');
+        
+        let mockRole, mockId;
+        if (parts.length > 1) {
+            // New format: mock-token-<role>|<id>
+            mockRole = parts[0];
+            mockId = parts[1];
+        } else {
+            // Old format: mock-token-<timestamp>
+            // Read user identity from fallback headers sent by the frontend
+            mockId = req.header('x-mock-user-id') || 'mock-token-legacy';
+            mockRole = req.header('x-mock-user-role') || 'admin';
+            console.log(`[Auth] Old mock token detected. Resolved identity from headers: id=${mockId}, role=${mockRole}`);
+        }
+        
+        req.user = { 
+            id: mockId, 
+            email: 'mock@example.com',
+            role: mockRole.toLowerCase() 
+        };
         return next();
     }
 

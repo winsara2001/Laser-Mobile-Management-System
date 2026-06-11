@@ -15,7 +15,9 @@ import api from '../services/api';
 
 const SidebarItem = ({ icon: Icon, label, to, badge }) => {
     const location = useLocation();
-    const isActive = location.pathname === to;
+    const isActive = to === '/dashboard' 
+        ? location.pathname === '/dashboard' || location.pathname === '/dashboard/'
+        : location.pathname.startsWith(to);
 
     return (
         <Link
@@ -23,8 +25,8 @@ const SidebarItem = ({ icon: Icon, label, to, badge }) => {
             className={clsx(
                 'flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden',
                 isActive
-                    ? 'bg-blue-600 text-slate-900 dark:text-white shadow-md shadow-blue-500/10'
-                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-100 dark:bg-white/5 hover:text-blue-400'
+                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/20'
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-primary-600/10 dark:hover:bg-primary-600/10 hover:text-primary-600'
             )}
         >
             <div className="flex items-center gap-3 z-10 relative">
@@ -33,13 +35,13 @@ const SidebarItem = ({ icon: Icon, label, to, badge }) => {
             </div>
             {badge && (
                 <span className={clsx(
-                    "text-xs font-bold px-2 py-0.5 rounded-full z-10 relative",
-                    isActive ? "bg-blue-500 text-slate-900 dark:text-white" : "bg-slate-200 dark:bg-[#1E202C] text-slate-700 dark:text-slate-300 group-hover:bg-[#2A2D3A]"
+                    "text-[10px] font-black px-2 py-0.5 rounded-lg z-10 relative uppercase tracking-tighter",
+                    isActive ? "bg-white/20 text-white" : "bg-slate-200 dark:bg-[#1E202C] text-slate-700 dark:text-slate-300 group-hover:bg-[#2A2D3A]"
                 )}>
                     {badge}
                 </span>
             )}
-            {isActive && <motion.div layoutId="activeTab" className="absolute inset-0 bg-slate-100 dark:bg-white/5" />}
+            {isActive && <motion.div layoutId="activeTab" className="absolute inset-0 bg-white/5 dark:bg-white/[0.03] backdrop-blur-sm shadow-inner" />}
         </Link>
     );
 };
@@ -156,26 +158,49 @@ const Layout = () => {
                 .channel('public:layout_repair_assignments')
                 .on(
                     'postgres_changes',
-                    { event: 'INSERT', schema: 'public', table: 'repairs', filter: `assignedTo=eq.${currentUser.id}` },
+                    { event: '*', schema: 'public', table: 'repairs' },
                     async (payload) => {
+                        if (payload.eventType !== 'INSERT' && payload.eventType !== 'UPDATE') return;
+                        
                         const r = payload.new;
-                        // Fetch full joined data
+                        if (!r) return;
+
+                        // Check if it belongs to this technician
+                        let isAssignedToMe = false;
+                        if (r.assignedTo === currentUser.id) {
+                            isAssignedToMe = true;
+                        } else if (currentUser.id.startsWith('mock-') && r.notes && r.notes.includes(`Technician: ${currentUser.id}`)) {
+                            isAssignedToMe = true;
+                        }
+
+                        if (!isAssignedToMe) return;
+
+                        // To avoid spamming on every update, only trigger if it's an INSERT or if it just got assigned
+                        // We assume payload.old might not have full data, so we just show the alert
+                        // (Ideally we check if old.assignedTo !== new.assignedTo, but Replica Identity might not be FULL)
+                        
+                        // We'll show the notification
                         const { data: repairFull } = await supabase
                             .from('repairs')
                             .select('*, customers(name), devices(model)')
                             .eq('id', r.id)
                             .single();
+                            
                         const deviceName = repairFull?.devices?.model || r.deviceModel || 'Device';
                         const custName = repairFull?.customers?.name || r.customerName || 'Customer';
                         const newNotif = {
-                            id: r.id,
-                            title: '🔧 New Repair Assigned',
+                            id: r.id + '-' + Date.now(), // unique ID to prevent React key collisions on multiple updates
+                            title: payload.eventType === 'INSERT' ? '🔧 New Repair Assigned' : '🔧 Repair Assignment Updated',
                             message: `${deviceName} for ${custName} — please check your repair queue.`,
                             time: new Date(),
                             isRead: false,
                             type: 'repair'
                         };
-                        setNotifications(prev => [newNotif, ...prev].slice(0, 5));
+                        setNotifications(prev => {
+                            // Deduplicate: avoid showing the same notification message multiple times rapidly
+                            if (prev.length > 0 && prev[0].id.startsWith(r.id) && Date.now() - prev[0].time.getTime() < 5000) return prev;
+                            return [newNotif, ...prev].slice(0, 5);
+                        });
                         setUnreadCount(prev => prev + 1);
                     }
                 )
@@ -215,6 +240,21 @@ const Layout = () => {
     const canViewRepairs = isAdmin || isTech || isSales;
     const canViewAdmin = isAdmin;
 
+    const getPageTitle = () => {
+        const path = location.pathname;
+        if (path.endsWith('/sales')) return 'Sales Terminal';
+        if (path.endsWith('/payments')) return 'Financial Ledger';
+        if (path.endsWith('/repairs')) return 'Service Command';
+        if (path.endsWith('/inventory')) return 'Resource Repository';
+        if (path.endsWith('/users')) return 'Personnel Registry';
+        if (path.endsWith('/purchase-orders')) return 'Procurement Stream';
+        if (path.endsWith('/suppliers')) return 'Supply Network';
+        if (path.endsWith('/profile')) return 'Identity Core';
+        if (path.endsWith('/supplier-portal')) return 'Vendor Satellite';
+        if (path.endsWith('/billings')) return 'Invoice Registry';
+        return 'Dashboard Overview';
+    };
+
     return (
         <div className="flex h-screen bg-slate-50 dark:bg-[#0F111A] text-slate-700 dark:text-slate-300 overflow-hidden font-sans">
             {/* Sidebar */}
@@ -227,9 +267,9 @@ const Layout = () => {
 
                 <div className="flex-1 overflow-y-auto px-4 pb-4 scrollbar-hide">
                     <div className="mb-6 mt-2">
-                        <Link to="/" className="flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100/50 dark:hover:bg-blue-900/20 transition-all font-medium text-sm border border-blue-100 dark:border-blue-800/30">
+                        <Link to="/" className="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary-600/10 text-primary-600 hover:bg-primary-600/20 transition-all font-black text-[10px] uppercase tracking-widest border border-primary-600/20">
                             <Globe size={18} />
-                            Go to Storefront
+                            Launch Storefront
                         </Link>
                     </div>
 
@@ -255,7 +295,6 @@ const Layout = () => {
                                     )}
                                     {canViewInventory && <SidebarItem icon={Package} label="Inventory" to="/dashboard/inventory" />}
                                     {canViewRepairs && <SidebarItem icon={Wrench} label="Repairs" to="/dashboard/repairs" />}
-                                    {canViewAdmin && <SidebarItem icon={BarChart2} label="Reports" to="/dashboard/reports" />}
                                 </nav>
                             </div>
 
@@ -283,10 +322,7 @@ const Layout = () => {
                 </div>
 
                 <div className="p-4 border-t border-slate-200 dark:border-[#1E202C]">
-                    <button className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-slate-900 dark:text-white py-3 px-4 rounded-xl font-medium transition-colors mb-2">
-                        <Plus size={18} />
-                        New Transaction
-                    </button>
+
                     <button onClick={handleLogout} className="flex items-center gap-3 px-4 py-2 w-full text-left text-red-400 hover:bg-red-500/10 rounded-xl transition-all duration-200">
                         <LogOut size={16} />
                         <span className="text-sm">Logout</span>
@@ -298,8 +334,8 @@ const Layout = () => {
             <main className="flex-1 overflow-auto relative bg-slate-50 dark:bg-[#0F111A]">
                 <header className="bg-slate-50 dark:bg-[#0F111A] border-b border-slate-200 dark:border-[#1E202C] h-20 flex items-center justify-between px-8 sticky top-0 z-40">
                     <div className="flex items-center gap-4">
-                        <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-                            Dashboard Overview
+                        <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight italic uppercase tracking-widest">
+                            {getPageTitle()}
                         </h1>
                         <div className="h-6 w-px bg-slate-200 dark:bg-[#1E202C]"></div>
                         <span className="text-sm text-slate-500 dark:text-slate-400">{currentDate}</span>
@@ -307,11 +343,11 @@ const Layout = () => {
 
                     <div className="flex items-center gap-6">
                         <div className="relative group">
-                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+                            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary-600 transition-colors" />
                             <input
                                 type="text"
-                                placeholder="Search orders or IMEI..."
-                                className="bg-white dark:bg-[#161925] border border-slate-200 dark:border-[#1E202C] text-sm text-slate-900 dark:text-white placeholder-slate-500 rounded-full pl-10 pr-4 py-2 w-64 focus:outline-none focus:border-blue-500 focus:bg-slate-200 dark:bg-[#1E202C] transition-all"
+                                placeholder="Access Repository: IMEI or SKU..."
+                                className="bg-white dark:bg-[#161925] border border-slate-200 dark:border-[#1E202C] text-sm text-slate-900 dark:text-white placeholder-slate-500 rounded-full pl-10 pr-4 py-2 w-64 focus:outline-none focus:border-primary-600/50 focus:bg-slate-200 dark:bg-[#1E202C] transition-all font-bold"
                             />
                         </div>
 
@@ -330,7 +366,7 @@ const Layout = () => {
                                             {unreadCount}
                                         </span>
                                     ) : (
-                                        <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full border-2 border-slate-50 dark:border-[#0F111A]"></span>
+                                        <span className="absolute top-0 right-0 w-2 h-2 bg-primary-600 rounded-full border-2 border-slate-50 dark:border-[#0F111A]"></span>
                                     )}
                                 </button>
 
@@ -347,13 +383,13 @@ const Layout = () => {
                                                 <div>
                                                     <h3 className="font-bold text-slate-800 dark:text-white text-sm">Notifications</h3>
                                                     {isTech && notifications.filter(n => n.type === 'repair').length > 0 && (
-                                                        <p className="text-[10px] text-blue-400 font-medium mt-0.5">
-                                                            {notifications.filter(n => n.type === 'repair').length} active repair{notifications.filter(n => n.type === 'repair').length > 1 ? 's' : ''} assigned to you
+                                                        <p className="text-[10px] text-primary-600 font-black uppercase tracking-[0.1em] mt-0.5">
+                                                            {notifications.filter(n => n.type === 'repair').length} Active Assignment{notifications.filter(n => n.type === 'repair').length > 1 ? 's' : ''}
                                                         </p>
                                                     )}
                                                 </div>
                                                 {unreadCount > 0 && (
-                                                    <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                                    <span className="bg-primary-600/10 text-primary-600 text-[10px] font-black px-2 py-0.5 rounded-full border border-primary-600/20 uppercase tracking-widest">
                                                         {unreadCount} New
                                                     </span>
                                                 )}
@@ -367,10 +403,10 @@ const Layout = () => {
                                                     <div className="divide-y divide-slate-100 dark:divide-white/5">
                                                         {notifications.map(notif => (
                                                             <div key={notif.id} className={`p-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors flex gap-3 ${!notif.isRead ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''}`}>
-                                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${notif.type === 'repair' ? 'bg-blue-100 dark:bg-blue-500/20' : 'bg-green-100 dark:bg-green-500/20'}`}>
+                                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${notif.type === 'repair' ? 'bg-primary-600/10' : 'bg-emerald-500/10'}`}>
                                                                     {notif.type === 'repair'
-                                                                        ? <Wrench size={14} className="text-blue-600 dark:text-blue-400" />
-                                                                        : <Package size={14} className="text-green-600 dark:text-green-400" />
+                                                                        ? <Wrench size={14} className="text-primary-600" />
+                                                                        : <Package size={14} className="text-emerald-500" />
                                                                     }
                                                                 </div>
                                                                 <div>
@@ -384,8 +420,8 @@ const Layout = () => {
                                                 )}
                                             </div>
                                             <div className="p-3 border-t border-slate-100 dark:border-white/5 bg-slate-50 dark:bg-white/5 text-center">
-                                                <button className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 w-full transition-colors">
-                                                    View All History
+                                                <button className="text-[10px] font-black text-primary-600 uppercase tracking-[0.2em] w-full transition-all hover:scale-105">
+                                                    Archive Retrieval Full Database
                                                 </button>
                                             </div>
                                         </motion.div>
@@ -399,7 +435,7 @@ const Layout = () => {
                             <select
                                 value={currency}
                                 onChange={(e) => setCurrency(e.target.value)}
-                                className="bg-transparent font-medium border border-slate-200 dark:border-[#1E202C] text-slate-700 dark:text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer"
+                                className="bg-transparent font-black border border-slate-200 dark:border-[#1E202C] text-slate-700 dark:text-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:border-primary-600/50 transition-colors cursor-pointer text-[10px] uppercase tracking-widest"
                             >
                                 {currencies.map(c => (
                                     <option key={c} value={c} className="bg-white dark:bg-[#161925] text-slate-900 dark:text-white font-medium">{c}</option>

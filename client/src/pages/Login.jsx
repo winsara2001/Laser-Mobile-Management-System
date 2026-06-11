@@ -60,8 +60,12 @@ const Login = () => {
                 const mockRes = await api.post('/auth/login', { email, password });
                 console.log("Backend login success:", mockRes.data);
                 if (mockRes.data.token && mockRes.data.user) {
+                    const mappedUser = {
+                        ...mockRes.data.user,
+                        name: mockRes.data.user.fullName || mockRes.data.user.name || 'User'
+                    };
                     localStorage.setItem('token', mockRes.data.token);
-                    localStorage.setItem('user', JSON.stringify(mockRes.data.user));
+                    localStorage.setItem('user', JSON.stringify(mappedUser));
                     setIsLoading(false);
                     console.log("Navigating to dashboard/home (mock)");
                     const mockRole = mockRes.data.user.role?.toLowerCase() || '';

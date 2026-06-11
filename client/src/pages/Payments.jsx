@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { CreditCard, DollarSign, Smartphone, Filter, Search } from 'lucide-react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useRef } from 'react';
+import { CreditCard, DollarSign, Smartphone, Filter, Search, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import { supabase } from '../supabaseClient';
 import { useCurrency } from '../context/CurrencyContext';
@@ -9,15 +9,29 @@ const Payments = () => {
     const { formatPrice } = useCurrency();
     const [filter, setFilter] = useState('all'); // all, cash, card, online
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    const debounceTimer = useRef(null);
     const [filterDate, setFilterDate] = useState('');
     const [salesData, setSalesData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [toastMessage, setToastMessage] = useState(null);
 
+    // Debounce search input — only update debouncedSearch 400ms after user stops typing
+    const handleSearchChange = (e) => {
+        const value = e.target.value;
+        setSearchTerm(value); // update input immediately (no flicker)
+        clearTimeout(debounceTimer.current);
+        debounceTimer.current = setTimeout(() => {
+            setDebouncedSearch(value);
+        }, 400);
+    };
+
     useEffect(() => {
         fetchSales();
+    }, [filter, debouncedSearch, filterDate]);
 
-        // Subscribe to real-time sales updates
+    useEffect(() => {
+        // Subscribe to real-time sales updates once on mount
         const paymentsSubscription = supabase
             .channel('payments_public:sales')
             .on(
@@ -32,13 +46,18 @@ const Payments = () => {
             )
             .subscribe();
 
+        // Show loader only on first mount
+        setLoading(true);
+        fetchSales(true);
+
         return () => {
             supabase.removeChannel(paymentsSubscription);
+            clearTimeout(debounceTimer.current);
         };
-    }, [filter, searchTerm, filterDate]);
+    }, []);
 
-    const fetchSales = async () => {
-        setLoading(true);
+    const fetchSales = async (showLoader = false) => {
+        if (showLoader) setLoading(true);
         try {
             let startDate = '';
             let endDate = '';
@@ -53,7 +72,7 @@ const Payments = () => {
             const res = await api.get('/payments', {
                 params: {
                     method: filter,
-                    search: searchTerm,
+                    search: debouncedSearch,
                     startDate,
                     endDate
                 }
@@ -70,19 +89,19 @@ const Payments = () => {
 
     const getPaymentIcon = (method) => {
         switch (method) {
-            case 'card': return <CreditCard size={18} className="text-blue-500" />;
-            case 'online': return <Smartphone size={18} className="text-purple-500" />;
+            case 'card': return <CreditCard size={14} className="text-blue-400 group-hover:rotate-12 transition-transform" />;
+            case 'online': return <Smartphone size={14} className="text-purple-400 group-hover:rotate-12 transition-transform" />;
             case 'cash':
-            default: return <DollarSign size={18} className="text-emerald-500" />;
+            default: return <DollarSign size={14} className="text-primary-600" />
         }
     };
 
     const getPaymentBadge = (method) => {
         switch (method) {
-            case 'card': return 'bg-blue-500/10 text-blue-500';
-            case 'online': return 'bg-purple-500/10 text-purple-500';
+            case 'card': return 'bg-blue-500/5 border-blue-500/20 text-blue-400';
+            case 'online': return 'bg-purple-500/5 border-purple-500/20 text-purple-400';
             case 'cash':
-            default: return 'bg-emerald-500/10 text-emerald-500';
+            default: return 'bg-primary-600/5 border-primary-600/20 text-primary-600';
         }
     };
 
@@ -90,15 +109,15 @@ const Payments = () => {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-[#161925] border border-slate-200 dark:border-[#1E202C] p-4 rounded-2xl">
-                <div className="flex gap-2">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8 bg-white/50 dark:bg-white/[0.02] border border-white/40 dark:border-white/5 p-8 rounded-[2.5rem] backdrop-blur-md">
+                <div className="flex flex-wrap gap-3">
                     {['all', 'cash', 'card', 'online'].map(f => (
                         <button
                             key={f}
                             onClick={() => setFilter(f)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${filter === f
-                                ? 'bg-blue-600 text-slate-900 dark:text-white shadow-lg shadow-blue-500/20'
-                                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-100 dark:bg-white/5 hover:text-slate-900 dark:text-white'
+                            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${filter === f
+                                ? 'bg-primary-600 text-white shadow-xl shadow-primary-600/20'
+                                : 'text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/5 hover:text-slate-900 dark:text-white'
                                 }`}
                         >
                             {f}
@@ -106,68 +125,73 @@ const Payments = () => {
                     ))}
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-4 items-center w-full sm:w-auto">
-                    <div className="relative w-full sm:w-auto">
+                <div className="flex flex-col md:flex-row gap-4 items-center w-full lg:w-auto">
+                    <div className="relative w-full md:w-64 group">
+                        <label className="absolute -top-6 left-1 text-[8px] font-black text-primary-600 uppercase tracking-widest mb-2 block">Date Range Filter</label>
                         <input
                             type="date"
                             value={filterDate}
                             onChange={(e) => setFilterDate(e.target.value)}
-                            className="bg-slate-50 dark:bg-[#0F111A] border border-slate-200 dark:border-[#1E202C] rounded-xl px-4 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 transition-all w-full sm:w-auto"
+                            className="bg-slate-50 dark:bg-[#0F111A] border border-slate-200 dark:border-white/5 rounded-2xl px-5 py-3.5 text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-600/50 transition-all w-full"
                         />
                         {filterDate && (
                             <button 
                                 onClick={() => setFilterDate('')}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500"
-                                title="Clear date filter"
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 p-1"
+                                title="Clear Filter"
                             >
-                                &times;
+                                <X size={14} />
                             </button>
                         )}
                     </div>
                 
-                    <div className="relative w-full sm:w-auto">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <div className="relative w-full md:w-80 group">
+                        <label className="absolute -top-6 left-1 text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 block font-mono tracking-tighter">Live Audit Search</label>
+                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary-600 transition-colors" size={18} />
                         <input
                             type="text"
-                            placeholder="Search customer or ID..."
+                            placeholder="Customer Name or Phone..."
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="bg-slate-50 dark:bg-[#0F111A] border border-slate-200 dark:border-[#1E202C] rounded-xl pl-10 pr-4 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 placeholder-slate-500 w-full sm:w-64 transition-all"
+                            onChange={handleSearchChange}
+                            className="bg-slate-50 dark:bg-[#0F111A] border border-slate-200 dark:border-white/5 rounded-2xl pl-14 pr-6 py-3.5 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-600/50 transition-all w-full"
                         />
                     </div>
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-[#161925] border border-slate-200 dark:border-[#1E202C] rounded-2xl overflow-hidden">
+            <div className="bg-white/70 dark:bg-[#161925]/60 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-black/5 border border-white/60 dark:border-white/5 overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full text-left">
                         <thead>
-                            <tr className="bg-slate-50 dark:bg-[#0F111A]/50 border-b border-slate-200 dark:border-[#1E202C] text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                <th className="p-4">Transaction ID</th>
-                                <th className="p-4">Customer</th>
-                                <th className="p-4">Date</th>
-                                <th className="p-4">Amount</th>
-                                <th className="p-4">Method</th>
+                            <tr className="bg-slate-50/50 dark:bg-slate-900/50 text-slate-400 dark:text-slate-500 font-black text-[10px] uppercase tracking-[0.2em] border-b border-slate-100 dark:border-white/5">
+                                <th className="px-8 py-5">Ledger ID</th>
+                                <th className="px-8 py-5">Beneficiary / Entity</th>
+                                <th className="px-8 py-5">Sync Timestamp</th>
+                                <th className="px-8 py-5">Financial Output</th>
+                                <th className="px-8 py-5">Settlement Channel</th>
                             </tr>
                         </thead>
-                        <tbody className="text-sm divide-y divide-[#1E202C]">
+                        <tbody className="divide-y divide-slate-50 dark:divide-white/[0.02]">
                             {filteredSales.map((sale) => (
-                                <tr key={sale.id || sale._id} className="hover:bg-slate-100 dark:hover:bg-slate-100 dark:bg-white/5 transition-colors">
-                                    <td className="p-4 font-mono text-slate-500 dark:text-slate-400">
-                                        {(sale.id || sale._id).substring(0, 8).toUpperCase()}
+                                <tr key={sale.id || sale._id} className="group hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors">
+                                    <td className="px-8 py-6">
+                                        <div className="font-mono text-[10px] font-black tracking-widest text-[#7bc24c] bg-[#7bc24c]/5 border border-[#7bc24c]/20 px-3 py-1.5 rounded-lg inline-block">
+                                            {(sale.id || sale._id).substring(0, 12).toUpperCase()}
+                                        </div>
                                     </td>
-                                    <td className="p-4">
-                                        <p className="font-bold text-slate-800 dark:text-slate-200">{sale.customerName || 'Walk-in'}</p>
-                                        {sale.customerPhone && <p className="text-xs text-slate-500">{sale.customerPhone}</p>}
+                                    <td className="px-8 py-6">
+                                        <p className="font-black text-slate-900 dark:text-white group-hover:text-[#7bc24c] transition-colors tracking-tight">{sale.customerName || 'Direct Walk-in'}</p>
+                                        {sale.customerPhone && <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter mt-0.5">{sale.customerPhone}</p>}
                                     </td>
-                                    <td className="p-4 text-slate-500 dark:text-slate-400">
-                                        {new Date(sale.date || sale.created_at).toLocaleString()}
+                                    <td className="px-8 py-6">
+                                        <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">{new Date(sale.date || sale.created_at).toLocaleDateString()}</div>
+                                        <div className="text-[8px] font-bold text-slate-400 italic px-0.5">{new Date(sale.date || sale.created_at).toLocaleTimeString()}</div>
                                     </td>
-                                    <td className="p-4 font-bold text-slate-900 dark:text-white">
-                                        {formatPrice(sale.totalAmount || 0)}
+                                    <td className="px-8 py-6">
+                                        <span className="font-black text-lg text-slate-900 dark:text-white italic tracking-tighter">{formatPrice(sale.totalAmount || 0)}</span>
                                     </td>
-                                    <td className="p-4">
-                                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider ${getPaymentBadge(sale.paymentMethod)}`}>
+                                    <td className="px-8 py-6">
+                                        <div className={`group/badge inline-flex items-center gap-2.5 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${getPaymentBadge(sale.paymentMethod)}`}>
                                             {getPaymentIcon(sale.paymentMethod)}
                                             {sale.paymentMethod || 'cash'}
                                         </div>
@@ -176,8 +200,11 @@ const Payments = () => {
                             ))}
                             {filteredSales.length === 0 && (
                                 <tr>
-                                    <td colSpan="5" className="p-8 text-center text-slate-500">
-                                        No transactions found for this payment method.
+                                    <td colSpan="5" className="px-8 py-20 text-center">
+                                        <div className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-600">
+                                            <Search size={48} className="mb-4 opacity-20" />
+                                            <p className="font-black uppercase tracking-[0.2em] text-[10px]">No matches found in ledger registry</p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -187,20 +214,25 @@ const Payments = () => {
             </div>
 
             {/* Real-time Toast Notification */}
-            {toastMessage && (
-                <motion.div
-                    initial={{ opacity: 0, y: 50 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 50 }}
-                    className="fixed bottom-6 right-6 bg-emerald-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-emerald-600/30 font-bold flex items-center gap-3 z-50"
-                >
-                    <span className="relative flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
-                    </span>
-                    {toastMessage}
-                </motion.div>
-            )}
+            <AnimatePresence>
+                {toastMessage && (
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.8, y: 50 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.8, y: 50 }}
+                        className="fixed bottom-10 right-10 bg-[#7bc24c] text-white px-8 py-5 rounded-[2rem] shadow-2xl shadow-[#7bc24c]/30 font-black text-xs uppercase tracking-widest flex items-center gap-6 z-[100] border border-white/20 backdrop-blur-xl"
+                    >
+                        <div className="relative">
+                            <div className="w-4 h-4 rounded-full bg-white animate-ping absolute opacity-40"></div>
+                            <div className="w-4 h-4 rounded-full bg-white relative shadow-lg"></div>
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-[10px] opacity-70 mb-0.5">Live Sync Protocol</span>
+                            <span>{toastMessage}</span>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

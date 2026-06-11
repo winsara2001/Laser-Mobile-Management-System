@@ -152,17 +152,25 @@ exports.updateRepair = async (req, res) => {
         if (status) updateFields.status = status;
         if (estimatedCost !== undefined) updateFields.estimatedCost = estimatedCost;
         if (finalCost !== undefined) updateFields.finalCost = finalCost;
+        const { data: oldRepair } = await supabase.from('repairs').select('status, notes').eq('id', req.params.id).single();
+        const wasAlreadyCompleted = oldRepair && oldRepair.status === 'completed';
+
         // Always set assignedTo (can be null to clear it)
         updateFields.assignedTo = assignedToValue;
-        // Combine notes with technician name
-        const combinedNotes = [notes || '', technicianNote].filter(Boolean).join(' | ');
-        if (notes !== undefined || technicianNote) updateFields.notes = combinedNotes;
+        
+        // Combine notes with technician name. If no new technician is assigned, preserve the old mock technician note if it exists
+        let finalTechnicianNote = technicianNote;
+        if (!finalTechnicianNote && oldRepair && oldRepair.notes && oldRepair.notes.includes('Technician: mock-')) {
+            const match = oldRepair.notes.match(/Technician:\s*(mock-[^|]+)/);
+            if (match) finalTechnicianNote = `Technician: ${match[1].trim()}`;
+        }
+        
+        const combinedNotes = [notes || '', finalTechnicianNote].filter(Boolean).join(' | ');
+        if (notes !== undefined || finalTechnicianNote) updateFields.notes = combinedNotes;
         if (customer_id !== undefined && customer_id !== 'new') updateFields.customer_id = customer_id;
         if (device_id !== undefined && device_id !== 'new') updateFields.device_id = device_id;
 
-        // Check previous status
-        const { data: oldRepair } = await supabase.from('repairs').select('status').eq('id', req.params.id).single();
-        const wasAlreadyCompleted = oldRepair && oldRepair.status === 'completed';
+
 
         const { data: repair, error } = await supabase
             .from('repairs')
@@ -232,12 +240,19 @@ exports.deleteRepair = async (req, res) => {
 // @access  Private/Technician
 exports.getMyRepairs = async (req, res) => {
     try {
-        const { data: repairs, error } = await supabase
+        let query = supabase
             .from('repairs')
             .select('*, customers(name, phone), devices(model)')
-            .eq('assignedTo', req.user.id)
             .not('status', 'in', '("completed","delivered")')
             .order('created_at', { ascending: false });
+
+        if (req.user.id.startsWith('mock-')) {
+            query = query.ilike('notes', `%Technician: ${req.user.id}%`);
+        } else {
+            query = query.eq('assignedTo', req.user.id);
+        }
+
+        const { data: repairs, error } = await query;
 
         if (error) throw error;
 

@@ -4,10 +4,15 @@ import {
     ShoppingBag, ShoppingCart, Star, ShieldCheck, Truck, Headphones,
     RefreshCw, ChevronRight, ArrowRight, X, Instagram, Facebook, Send,
     Phone, Tablet, Headphones as HeadphonesIcon, Watch, Camera, Cpu,
+    HardDrive, Battery, Monitor, MemoryStick
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import api from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
+import PhoneModel from '../components/PhoneModel';
+import ProductDetailModal from '../components/ProductDetailModal';
+import ProductsModal from '../components/ProductsModal';
+import { getProductImages } from '../utils/productImages';
 
 /* ─────────────── helpers ─────────────── */
 const CATEGORY_ICONS = {
@@ -39,7 +44,6 @@ const inView = {
     hidden: { opacity: 0, y: 36 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] } },
 };
-
 /* ─────────────── Main Component ─────────────── */
 const LandingPage = () => {
     const { addToCart } = useCart();
@@ -53,9 +57,10 @@ const LandingPage = () => {
 
     /* Review modal */
     const [selectedProduct, setSelectedProduct] = useState(null);
-    const [productReviews, setProductReviews] = useState([]);
     const [showReviewModal, setShowReviewModal] = useState(false);
-    const [reviewForm, setReviewForm] = useState({ customerName: '', rating: 5, message: '' });
+
+    /* View All modal */
+    const [showAllProducts, setShowAllProducts] = useState(false);
 
     /* ── Fetch products ── */
     useEffect(() => {
@@ -63,10 +68,11 @@ const LandingPage = () => {
             try {
                 const res = await api.get('/inventory');
                 const data = res.data || [];
-                setProducts(data.slice(0, 12));
+                // Show all products, not just 12
+                setProducts(data);
 
                 /* Build unique categories */
-                const cats = ['All', ...new Set(data.map(p => p.category).filter(Boolean).map(c => c.trim()))];
+                const cats = ['All', ...new Set(data.map(p => String(p.category || '').trim()).filter(Boolean))];
                 setCategories(cats);
             } catch (err) {
                 console.error('Error fetching products:', err);
@@ -82,32 +88,22 @@ const LandingPage = () => {
         ? products
         : products.filter(p => (p.category || '').toLowerCase() === activeCategory.toLowerCase());
 
-    /* ── Reviews ── */
-    const fetchProductReviews = async (productId) => {
-        try {
-            const res = await api.get(`/feedback/product/${productId}`);
-            setProductReviews(res.data);
-        } catch (err) {
-            setProductReviews([]);
-        }
-    };
-
     const handleProductClick = (product) => {
-        setSelectedProduct(product);
-        fetchProductReviews(product._id || product.id);
+        // Enrich with local image if DB imageUrl is missing
+        const locals = !product.imageUrl
+            ? getProductImages((product.name || '').replace(/\s+/g, ' ').trim())
+            : [];
+        const enriched = locals.length > 0 ? { ...product, imageUrl: locals.join(',') } : product;
+        setSelectedProduct(enriched);
         setShowReviewModal(true);
     };
 
-    const submitReview = async (e) => {
-        e.preventDefault();
-        try {
-            await api.post('/feedback', { ...reviewForm, productId: selectedProduct._id || selectedProduct.id });
-            setReviewForm({ customerName: '', rating: 5, message: '' });
-            fetchProductReviews(selectedProduct._id || selectedProduct.id);
-            alert('Thank you for your review!');
-        } catch {
-            alert('Failed to submit review.');
-        }
+    /** Resolve the best image src for a product card */
+    const getItemImage = (item) => {
+        if (item.imageUrl) return item.imageUrl.split(',')[0].trim();
+        const normalizedName = (item.name || '').replace(/\s+/g, ' ').trim();
+        const locals = getProductImages(normalizedName);
+        return locals[0] || null;
     };
 
     const handleNewsletterSubmit = (e) => {
@@ -136,61 +132,78 @@ const LandingPage = () => {
                 <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] rounded-full blur-[100px]"
                     style={{ background: 'radial-gradient(circle, rgba(200,100,255,0.10) 0%, transparent 70%)' }} />
 
-                {/* Badge */}
-                <motion.div
-                    initial={{ opacity: 0, y: -16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: 0.1 }}
-                    className="mb-8 flex items-center gap-2 px-4 py-2 rounded-full border border-white/20 bg-white/5 backdrop-blur-sm text-sm text-white/70 font-medium"
-                >
-                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                    New arrivals every week
-                </motion.div>
+                <div className="max-w-7xl mx-auto w-full px-5 sm:px-8 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10 pt-20 lg:pt-0">
+                    
+                    {/* LEFT COLUMN: Text */}
+                    <div className="flex flex-col items-center lg:items-start text-center lg:text-left">
+                        {/* Badge */}
+                        <motion.div
+                            initial={{ opacity: 0, y: -16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.6, delay: 0.1 }}
+                            className="mb-8 flex items-center gap-2 px-4 py-2 rounded-full border border-white/20 bg-white/5 backdrop-blur-sm text-sm text-white/70 font-medium"
+                        >
+                            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                            New arrivals every week
+                        </motion.div>
 
-                {/* Headline */}
-                <motion.h1
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                    className="text-center text-6xl sm:text-7xl md:text-8xl font-black leading-[1.05] tracking-tight mb-6 px-4"
-                    style={{ letterSpacing: '-0.03em' }}
-                >
-                    Power On.
-                    <br />
-                    <span className="text-white/40">Limits Off.</span>
-                </motion.h1>
+                        {/* Headline */}
+                        <motion.h1
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                            className="text-6xl sm:text-7xl md:text-8xl lg:text-[7rem] font-black leading-[1.05] tracking-tight mb-6"
+                            style={{ letterSpacing: '-0.03em' }}
+                        >
+                            Power On.
+                            <br />
+                            <span className="text-white/40">Limits Off.</span>
+                        </motion.h1>
 
-                {/* Sub-headline */}
-                <motion.p
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.7, delay: 0.35 }}
-                    className="text-white/50 text-lg sm:text-xl max-w-md text-center mb-10 px-4 leading-relaxed"
-                >
-                    Premium smartphones & accessories. Genuine warranty. Delivered to your door.
-                </motion.p>
+                        {/* Sub-headline */}
+                        <motion.p
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.7, delay: 0.35 }}
+                            className="text-white/50 text-lg sm:text-xl max-w-lg mb-10 leading-relaxed"
+                        >
+                            Premium smartphones & accessories. Genuine warranty. Delivered to your door.
+                        </motion.p>
 
-                {/* CTA Buttons */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.6, delay: 0.48 }}
-                    className="flex flex-col sm:flex-row gap-4 px-4"
-                >
-                    <a
-                        href="#products"
-                        className="group px-8 py-4 rounded-full bg-white text-black font-semibold text-base hover:bg-white/90 transition-all shadow-2xl flex items-center gap-2 justify-center"
+                        {/* CTA Buttons */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.6, delay: 0.48 }}
+                            className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto"
+                        >
+                            <a
+                                href="#products"
+                                className="group px-8 py-4 rounded-full bg-[#7bc24c] text-white font-semibold text-base hover:bg-[#6ab33d] transition-all shadow-xl shadow-[#7bc24c]/20 flex items-center gap-2 justify-center"
+                            >
+                                Shop Now
+                                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                            </a>
+                            <a
+                                href="#features"
+                                className="px-8 py-4 rounded-full border border-white/25 text-white/80 font-semibold text-base hover:border-white/50 hover:text-white hover:bg-white/5 transition-all text-center"
+                            >
+                                Why Choose Us
+                            </a>
+                        </motion.div>
+                    </div>
+
+                    {/* RIGHT COLUMN: Large 3D Canvas */}
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 1, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                        className="w-full h-[500px] lg:h-[800px] flex items-center justify-center relative cursor-grab active:cursor-grabbing"
                     >
-                        Shop Now
-                        <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                    </a>
-                    <a
-                        href="#features"
-                        className="px-8 py-4 rounded-full border border-white/25 text-white/80 font-semibold text-base hover:border-white/50 hover:text-white hover:bg-white/5 transition-all text-center"
-                    >
-                        Why Choose Us
-                    </a>
-                </motion.div>
+                        <PhoneModel />
+                    </motion.div>
+
+                </div>
 
                 {/* Scroll indicator */}
                 <motion.div
@@ -251,9 +264,12 @@ const LandingPage = () => {
                                 {activeCategory === 'All' ? 'Featured Products' : activeCategory}
                             </h2>
                         </div>
-                        <a href="#" className="hidden sm:flex items-center gap-1 text-sm font-semibold text-gray-400 hover:text-black transition-colors group">
+                        <button
+                            onClick={() => setShowAllProducts(true)}
+                            className="hidden sm:flex items-center gap-1 text-sm font-semibold text-gray-400 hover:text-black transition-colors group"
+                        >
                             View All <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                        </a>
+                        </button>
                     </div>
 
                     {/* Grid */}
@@ -289,15 +305,18 @@ const LandingPage = () => {
                                     >
                                         {/* Image area */}
                                         <div className="relative overflow-hidden bg-gray-50 dark:bg-gray-800 aspect-square flex items-center justify-center p-6">
-                                            {item.imageUrl ? (
-                                                <img
-                                                    src={item.imageUrl}
-                                                    alt={item.name}
-                                                    className="product-card-img w-full h-full object-contain"
-                                                />
-                                            ) : (
-                                                <ShoppingBag size={40} className="text-gray-300" />
-                                            )}
+                                            {(() => {
+                                                const imgSrc = getItemImage(item);
+                                                return imgSrc ? (
+                                                    <img
+                                                        src={imgSrc}
+                                                        alt={item.name}
+                                                        className="product-card-img w-full h-full object-contain transition-transform duration-500 group-hover:scale-105"
+                                                    />
+                                                ) : (
+                                                    <ShoppingBag size={40} className="text-gray-300" />
+                                                );
+                                            })()}
 
                                             {/* Category badge */}
                                             {item.category && (
@@ -306,25 +325,50 @@ const LandingPage = () => {
                                                 </div>
                                             )}
 
+                                            {/* Sale badge */}
+                                            {(() => {
+                                                let promo = item.promotion;
+                                                if (promo && typeof promo === 'string') { try { promo = JSON.parse(promo); } catch(e) { promo = null; } }
+                                                if (!promo || !promo.discountPercent || Number(promo.discountPercent) <= 0) return null;
+                                                return (
+                                                    <div className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-[#7bc24c] text-white text-[10px] font-black uppercase tracking-wide shadow-md">
+                                                        {promo.label || 'Sale!'}
+                                                    </div>
+                                                );
+                                            })()}
+
+                                            {/* Out of Stock overlay */}
+                                            {Number(item.stock) <= 0 && (
+                                                <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                                                    <span className="bg-red-500 text-white px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-500/30 transform -rotate-6">Out of Stock</span>
+                                                </div>
+                                            )}
+
                                             {/* Add to cart overlay button */}
-                                            <div className="cart-btn-overlay absolute bottom-3 left-3 right-3">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        addToCart({
-                                                            id: item._id || item.id,
-                                                            name: item.name,
-                                                            price: item.price,
-                                                            imageUrl: item.imageUrl,
-                                                            brand: item.brand,
-                                                            category: item.category,
-                                                        });
-                                                    }}
-                                                    className="w-full py-2.5 rounded-xl bg-black text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-gray-800 transition-colors"
-                                                >
-                                                    <ShoppingCart size={15} />
-                                                    Add to Cart
-                                                </button>
+                                            <div className="cart-btn-overlay absolute bottom-3 left-3 right-3 z-20">
+                                                {Number(item.stock) > 0 ? (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            addToCart({
+                                                                id: item._id || item.id,
+                                                                name: item.name,
+                                                                price: item.price,
+                                                                imageUrl: getItemImage(item),
+                                                                brand: item.brand,
+                                                                category: item.category,
+                                                            });
+                                                        }}
+                                                        className="w-full py-2.5 rounded-xl bg-black text-white text-sm font-semibold flex items-center justify-center gap-2 hover:bg-gray-800 transition-colors shadow-lg"
+                                                    >
+                                                        <ShoppingCart size={15} />
+                                                        Add to Cart
+                                                    </button>
+                                                ) : (
+                                                    <button disabled className="w-full py-2.5 rounded-xl bg-gray-900/10 text-gray-900/40 text-sm font-semibold flex items-center justify-center gap-2 cursor-not-allowed backdrop-blur-md">
+                                                        Out of Stock
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
 
@@ -343,7 +387,22 @@ const LandingPage = () => {
                                                 ))}
                                                 <span className="text-[10px] text-gray-400 ml-1">4.9</span>
                                             </div>
-                                            <p className="mt-2 text-base font-black text-gray-900 dark:text-white tracking-tight">{formatPrice(item.price)}</p>
+                                            {(() => {
+                                                let promo = item.promotion;
+                                                if (promo && typeof promo === 'string') { try { promo = JSON.parse(promo); } catch(e) { promo = null; } }
+                                                const discount = promo && Number(promo.discountPercent) > 0 ? Number(promo.discountPercent) : 0;
+                                                const discountedPrice = discount > 0 ? item.price * (1 - discount / 100) : null;
+                                                return (
+                                                    <div className="mt-2 flex flex-col gap-0.5">
+                                                        {discountedPrice !== null && (
+                                                            <span className="text-xs text-gray-400 line-through">{formatPrice(item.price)}</span>
+                                                        )}
+                                                        <span className={`text-base font-black tracking-tight ${discountedPrice !== null ? 'text-[#7bc24c]' : 'text-gray-900'}`}>
+                                                            {formatPrice(discountedPrice ?? item.price)}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     </motion.div>
                                 ))}
@@ -444,17 +503,20 @@ const LandingPage = () => {
                                     {/* Glow */}
                                     <div className="absolute inset-0 rounded-full blur-[80px]"
                                         style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 70%)' }} />
-                                    {featureProduct.imageUrl ? (
-                                        <img
-                                            src={featureProduct.imageUrl}
-                                            alt={featureProduct.name}
-                                            className="relative w-full h-full object-contain drop-shadow-2xl"
-                                        />
-                                    ) : (
-                                        <div className="relative w-full h-full rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center">
-                                            <ShoppingBag size={64} className="text-white/20" />
-                                        </div>
-                                    )}
+                                    {(() => {
+                                        const imgSrc = getItemImage(featureProduct);
+                                        return imgSrc ? (
+                                            <img
+                                                src={imgSrc}
+                                                alt={featureProduct.name}
+                                                className="relative w-full h-full object-contain drop-shadow-2xl"
+                                            />
+                                        ) : (
+                                            <div className="relative w-full h-full rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center">
+                                                <ShoppingBag size={64} className="text-white/20" />
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </motion.div>
                         </div>
@@ -576,143 +638,21 @@ const LandingPage = () => {
             {/* ══════════════════════════════════════════
                 PRODUCT DETAIL + REVIEW MODAL
             ══════════════════════════════════════════ */}
-            <AnimatePresence>
-                {showReviewModal && selectedProduct && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.25 }}
-                        className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[200]"
-                        onClick={() => setShowReviewModal(false)}
-                    >
-                        <motion.div
-                            initial={{ opacity: 0, y: 32, scale: 0.96 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 16, scale: 0.97 }}
-                            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col md:flex-row"
-                        >
-                            {/* Close */}
-                            <button
-                                onClick={() => setShowReviewModal(false)}
-                                className="absolute top-5 right-5 z-10 w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 transition-colors"
-                            >
-                                <X size={16} />
-                            </button>
+            <ProductDetailModal 
+                isOpen={showReviewModal}
+                onClose={() => setShowReviewModal(false)}
+                product={selectedProduct}
+            />
 
-                            {/* Product info */}
-                            <div className="md:w-5/12 bg-gray-50 p-8 flex flex-col border-b md:border-b-0 md:border-r border-gray-100">
-                                <div className="flex-1 flex items-center justify-center bg-white rounded-2xl mb-6 min-h-[200px] p-6">
-                                    {selectedProduct.imageUrl ? (
-                                        <img
-                                            src={selectedProduct.imageUrl}
-                                            alt={selectedProduct.name}
-                                            className="max-h-52 object-contain drop-shadow-lg"
-                                        />
-                                    ) : (
-                                        <ShoppingBag size={56} className="text-gray-200" />
-                                    )}
-                                </div>
-                                {selectedProduct.category && (
-                                    <span className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-1">{selectedProduct.category}</span>
-                                )}
-                                <h2 className="text-xl font-black text-gray-900 mb-1 leading-tight">{selectedProduct.name}</h2>
-                                <p className="text-2xl font-black text-black mb-3">{formatPrice(selectedProduct.price)}</p>
-                                <p className="text-sm text-gray-400 leading-relaxed mb-6 flex-1">
-                                    {selectedProduct.description || 'Premium mobile device featuring cutting-edge specifications and elegant design.'}
-                                </p>
-                                <button
-                                    onClick={() => {
-                                        addToCart({
-                                            id: selectedProduct._id || selectedProduct.id,
-                                            name: selectedProduct.name,
-                                            price: selectedProduct.price,
-                                            imageUrl: selectedProduct.imageUrl,
-                                            brand: selectedProduct.brand,
-                                            category: selectedProduct.category,
-                                        });
-                                        setShowReviewModal(false);
-                                    }}
-                                    className="w-full py-3.5 rounded-xl bg-black text-white font-bold text-sm hover:bg-gray-900 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <ShoppingCart size={16} /> Add to Cart
-                                </button>
-                            </div>
-
-                            {/* Reviews panel */}
-                            <div className="md:w-7/12 p-8 overflow-y-auto custom-scrollbar flex flex-col">
-                                <h3 className="text-lg font-black text-gray-900 mb-5 flex items-center gap-2">
-                                    <Star size={18} className="text-yellow-400" fill="#facc15" /> Customer Reviews
-                                </h3>
-
-                                <div className="flex-1 space-y-3 mb-6">
-                                    {productReviews.length > 0 ? productReviews.map(review => (
-                                        <div key={review.id} className="bg-gray-50 border border-gray-100 rounded-xl p-4">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <span className="font-bold text-gray-900 text-sm">{review.customerName}</span>
-                                                <div className="flex gap-0.5">
-                                                    {[...Array(5)].map((_, i) => (
-                                                        <Star key={i} size={11} fill={i < review.rating ? '#f59e0b' : 'none'} stroke={i < review.rating ? 'none' : '#d1d5db'} />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            <p className="text-sm text-gray-500 leading-relaxed">{review.message}</p>
-                                            <p className="text-xs text-gray-300 mt-2">{new Date(review.created_at).toLocaleDateString()}</p>
-                                        </div>
-                                    )) : (
-                                        <div className="text-center py-10 text-gray-300 border border-dashed border-gray-200 rounded-xl">
-                                            <Star size={28} className="mx-auto mb-2 opacity-40" />
-                                            <p className="text-sm font-medium text-gray-400">No reviews yet. Be the first!</p>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Write review */}
-                                <div className="border-t border-gray-100 pt-5">
-                                    <h4 className="font-bold text-gray-800 text-sm mb-3">Write a Review</h4>
-                                    <form onSubmit={submitReview} className="space-y-3">
-                                        <input
-                                            type="text"
-                                            placeholder="Your Name"
-                                            required
-                                            value={reviewForm.customerName}
-                                            onChange={e => setReviewForm({ ...reviewForm, customerName: e.target.value })}
-                                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-gray-50 focus:border-black focus:outline-none transition-colors"
-                                        />
-                                        <div className="flex items-center gap-3 text-sm text-gray-500">
-                                            <span>Rating:</span>
-                                            <input
-                                                type="number" min="1" max="5" required
-                                                value={reviewForm.rating}
-                                                onChange={e => setReviewForm({ ...reviewForm, rating: Number(e.target.value) })}
-                                                className="w-16 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 bg-gray-50 focus:border-black focus:outline-none transition-colors text-center"
-                                            />
-                                            <Star size={14} className="text-yellow-400" fill="#facc15" />
-                                        </div>
-                                        <textarea
-                                            placeholder="Share your experience..."
-                                            required
-                                            value={reviewForm.message}
-                                            onChange={e => setReviewForm({ ...reviewForm, message: e.target.value })}
-                                            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 bg-gray-50 focus:border-black focus:outline-none h-20 resize-none transition-colors"
-                                        />
-                                        <button
-                                            type="submit"
-                                            className="w-full py-2.5 rounded-xl bg-black text-white text-sm font-bold hover:bg-gray-800 transition-colors"
-                                        >
-                                            Submit Review
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            {/* View All Products modal */}
+            <ProductsModal
+                isOpen={showAllProducts}
+                onClose={() => setShowAllProducts(false)}
+                brandCategory={activeCategory === 'All' ? 'All Products' : activeCategory}
+            />
         </div>
     );
 };
 
 export default LandingPage;
+

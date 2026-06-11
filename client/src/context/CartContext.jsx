@@ -20,56 +20,54 @@ export const CartProvider = ({ children }) => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             setUserId(session?.user?.id || null);
             if (event === 'SIGNED_OUT') {
-                setCart([]); // Clear cart in memory on logout
+                // Keep the cart loaded so someone can browse as a guest after logging out
+                // setCart([]); 
             }
         });
 
         return () => subscription.unsubscribe();
     }, []);
 
-    // 2. Load cart specifically for that user when they log in
+    // 2. Load cart for user or guest
     useEffect(() => {
-        if (userId) {
-            try {
-                const localCart = localStorage.getItem(`cart_${userId}`);
-                setCart(localCart ? JSON.parse(localCart) : []);
-            } catch (error) {
-                console.error("Failed to parse cart from local storage", error);
-                setCart([]);
-            }
-        } else {
+        const key = userId ? `cart_${userId}` : 'cart_guest';
+        try {
+            const localCart = localStorage.getItem(key);
+            setCart(localCart ? JSON.parse(localCart) : []);
+        } catch (error) {
+            console.error("Failed to parse cart from local storage", error);
             setCart([]);
         }
     }, [userId]);
 
-    // 3. Save to local storage under user-specific key whenever cart changes
+    // 3. Save to local storage
     useEffect(() => {
-        if (userId) {
-            localStorage.setItem(`cart_${userId}`, JSON.stringify(cart));
-        }
+        const key = userId ? `cart_${userId}` : 'cart_guest';
+        localStorage.setItem(key, JSON.stringify(cart));
     }, [cart, userId]);
 
     const addToCart = (product) => {
+        const cartItemId = `${product.id}-${product.selectedStorage || 'base'}-${product.selectedColor || 'base'}`;
         setCart(prevCart => {
-            const existingItem = prevCart.find(item => item.id === product.id);
+            const existingItem = prevCart.find(item => (item.cartItemId === cartItemId) || (!item.cartItemId && item.id === product.id));
             if (existingItem) {
                 return prevCart.map(item =>
-                    item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+                    (item.cartItemId === cartItemId || (!item.cartItemId && item.id === product.id)) ? { ...item, quantity: item.quantity + 1 } : item
                 );
             }
-            return [...prevCart, { ...product, quantity: 1 }];
+            return [...prevCart, { ...product, cartItemId, quantity: 1 }];
         });
     };
 
-    const removeFromCart = (productId) => {
-        setCart(prevCart => prevCart.filter(item => item.id !== productId));
+    const removeFromCart = (identifier) => {
+        setCart(prevCart => prevCart.filter(item => item.cartItemId !== identifier && item.id !== identifier));
     };
 
-    const updateQuantity = (productId, newQuantity) => {
+    const updateQuantity = (identifier, newQuantity) => {
         if (newQuantity < 1) return;
         setCart(prevCart =>
             prevCart.map(item =>
-                item.id === productId ? { ...item, quantity: newQuantity } : item
+                (item.cartItemId === identifier || item.id === identifier) ? { ...item, quantity: newQuantity } : item
             )
         );
     };

@@ -12,10 +12,6 @@ if (!supabaseUrl || !supabaseKey) {
     console.warn('⚠️  Supabase credential(s) missing in .env');
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey, {
-    global: {
-        fetch: require('node-fetch')
-    }
-});
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 module.exports = supabase;

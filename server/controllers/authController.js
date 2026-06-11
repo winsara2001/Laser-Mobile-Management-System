@@ -102,7 +102,7 @@ exports.login = async (req, res) => {
         return res.json({
             msg: 'Logged in as mock user',
             user: mockUser,
-            token: 'mock-token-' + Date.now()
+            token: `mock-token-${mockUser.role}|${mockUser.id}`
         });
     }
 
@@ -148,6 +148,9 @@ exports.deleteUser = async (req, res) => {
                     await supabase.from('purchase_orders').update({ created_by: null }).eq('created_by', req.params.id);
                     await supabase.from('suppliers').update({ user_id: null }).eq('user_id', req.params.id);
                     await supabase.from('sales').update({ soldBy: null }).eq('soldBy', req.params.id);
+                    await supabase.from('repairs').update({ receivedBy: null }).eq('receivedBy', req.params.id);
+                    await supabase.from('repairs').update({ assignedTo: null }).eq('assignedTo', req.params.id);
+                    await supabase.from('repairs').update({ customer_id: null }).eq('customer_id', req.params.id);
                     
                     // Retry deletion
                     const retry = await supabase.from('profiles').delete().eq('id', req.params.id);

@@ -46,7 +46,7 @@ const CartDrawer = ({ isOpen, onClose }) => {
                         {/* Header */}
                         <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-white/95 backdrop-blur-sm sticky top-0 z-10 shrink-0">
                             <div className="flex items-center gap-4">
-                                <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
+                                <div className="p-3 bg-green-50 rounded-xl text-[#7bc24c]">
                                     <ShoppingBag size={28} />
                                 </div>
                                 <div>
@@ -80,7 +80,7 @@ const CartDrawer = ({ isOpen, onClose }) => {
                                     <p className="text-gray-500 max-w-sm">Looks like you haven't added any products yet. Explore our inventory to find exactly what you need.</p>
                                     <button
                                         onClick={onClose}
-                                        className="mt-8 px-8 py-3.5 bg-gray-900 text-slate-900 dark:text-white font-semibold rounded-full hover:bg-gray-800 transition-colors shadow-lg shadow-gray-200"
+                                        className="mt-8 px-8 py-3.5 bg-[#7bc24c] text-white font-semibold rounded-full hover:bg-[#6ab33d] transition-colors shadow-lg shadow-[#7bc24c]/20"
                                     >
                                         Start Shopping
                                     </button>
@@ -102,7 +102,7 @@ const CartDrawer = ({ isOpen, onClose }) => {
                                             }}
                                             className="flex flex-col sm:flex-row gap-5 p-5 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-lg hover:border-indigo-100 transition-all group relative overflow-hidden"
                                         >
-                                            <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            <div className="absolute top-0 left-0 w-1.5 h-full bg-[#7bc24c] opacity-0 group-hover:opacity-100 transition-opacity" />
 
                                             <div className="w-full sm:w-28 h-32 sm:h-28 bg-gray-50 rounded-xl flex items-center justify-center p-3 sm:flex-shrink-0">
                                                 {item.imageUrl ? (
@@ -115,14 +115,16 @@ const CartDrawer = ({ isOpen, onClose }) => {
                                             <div className="flex-1 flex flex-col justify-between py-1 min-w-0">
                                                 <div className="flex justify-between items-start gap-4">
                                                     <div className="pr-8">
-                                                        <h3 className="font-bold text-gray-900 text-lg leading-snug group-hover:text-indigo-600 transition-colors break-words">{item.name}</h3>
+                                                        <h3 className="font-bold text-gray-900 text-lg leading-snug group-hover:text-[#7bc24c] transition-colors break-words">{item.name}</h3>
                                                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                                                             <span className="text-xs font-semibold px-2 py-0.5 bg-gray-100 text-gray-600 rounded-md capitalize">{(item.brand || item.category || 'Mobile Phone')}</span>
+                                                            {item.selectedStorage && <span className="text-xs font-semibold px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md">{item.selectedStorage}</span>}
+                                                            {item.selectedColor && <span className="text-xs font-semibold px-2 py-0.5 bg-fuchsia-50 text-fuchsia-600 rounded-md capitalize">{item.selectedColor}</span>}
                                                             {item.sku && <span className="text-xs text-gray-400">SKU: {item.sku}</span>}
                                                         </div>
                                                     </div>
                                                     <button
-                                                        onClick={() => removeFromCart(item.id)}
+                                                        onClick={() => removeFromCart(item.cartItemId || item.id)}
                                                         className="absolute sm:relative top-4 right-4 sm:top-auto sm:right-auto text-gray-400 hover:text-slate-900 dark:text-white hover:bg-red-500 p-2 rounded-xl transition-all shadow-sm hover:shadow-md hover:shadow-red-500/20 bg-gray-50 hover:border-red-500 border border-gray-100"
                                                         title="Remove Item"
                                                     >
@@ -133,16 +135,16 @@ const CartDrawer = ({ isOpen, onClose }) => {
                                                 <div className="flex items-center justify-between mt-4 md:mt-0 pt-4 border-t border-gray-50 sm:border-none sm:pt-0">
                                                     <div className="flex items-center bg-gray-50 rounded-lg p-1 border border-gray-200/60 shadow-inner">
                                                         <button
-                                                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                                            onClick={() => updateQuantity(item.cartItemId || item.id, item.quantity - 1)}
                                                             disabled={item.quantity <= 1}
-                                                            className="p-1 px-2 text-gray-500 hover:text-indigo-600 hover:bg-white rounded-md transition-all disabled:opacity-30 disabled:hover:bg-transparent shadow-sm"
+                                                            className="p-1 px-2 text-gray-500 hover:text-[#7bc24c] hover:bg-white rounded-md transition-all disabled:opacity-30 disabled:hover:bg-transparent shadow-sm"
                                                         >
                                                             <Minus size={14} />
                                                         </button>
                                                         <span className="font-bold text-sm w-8 text-center text-gray-900">{item.quantity}</span>
                                                         <button
-                                                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                                            className="p-1 px-2 text-gray-500 hover:text-indigo-600 hover:bg-white rounded-md transition-all shadow-sm"
+                                                            onClick={() => updateQuantity(item.cartItemId || item.id, item.quantity + 1)}
+                                                            className="p-1 px-2 text-gray-500 hover:text-[#7bc24c] hover:bg-white rounded-md transition-all shadow-sm"
                                                         >
                                                             <Plus size={14} />
                                                         </button>
@@ -174,7 +176,7 @@ const CartDrawer = ({ isOpen, onClose }) => {
 
                                     <button
                                         onClick={handleCheckout}
-                                        className="w-full sm:w-auto px-10 py-4 rounded-xl bg-indigo-600 text-slate-900 dark:text-white font-bold text-lg hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-2 whitespace-nowrap"
+                                        className="w-full sm:w-auto px-10 py-4 rounded-xl bg-[#7bc24c] text-white font-bold text-lg hover:bg-green-600 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-[#7bc24c]/20 flex items-center justify-center gap-2 whitespace-nowrap"
                                     >
                                         Proceed to Checkout
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>

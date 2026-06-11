@@ -87,3 +87,24 @@ coverage/
 .next/
 .nuxt/
 .output/
+
+# ─────────────────────────────────────────
+#  Scratch / Debug / Temp files
+# ─────────────────────────────────────────
+scratch/
+*.txt
+brute_force_out.txt
+col_test.txt
+test-db-out.txt
+test_out.txt
+error_log.json
+openapi_spec.json
+login-error.json
+signup-output.txt
+update-images.js
+test-vite.js
+
+# ─────────────────────────────────────────
+#  Uploads (user-generated content)
+# ─────────────────────────────────────────
+server/uploads/

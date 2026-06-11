@@ -23,6 +23,7 @@
     "lmms-ag": "file:..",
     "mongodb-memory-server": "^11.0.1",
     "mongoose": "^9.2.1",
+    "multer": "^2.1.1",
     "node-fetch": "^2.7.0",
     "nodemailer": "^8.0.4",
     "nodemon": "^3.1.11"

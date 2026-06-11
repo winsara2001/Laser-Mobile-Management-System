@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Search, FileText, Printer, FileDown, Calendar, User, Plus, Trash2, Calculator, Mail, Send, CheckCircle, XCircle } from 'lucide-react';
+import { Search, FileText, Printer, FileDown, Calendar, User, Mail, Send, CheckCircle, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import clsx from 'clsx';
 import { useCurrency } from '../context/CurrencyContext';
 
 const Billings = () => {
     const { formatPrice } = useCurrency();
-    const [activeTab, setActiveTab] = useState('history'); // 'history' or 'generate'
     const [sales, setSales] = useState([]);
     const [users, setUsers] = useState([]);
     const [products, setProducts] = useState([]);
@@ -16,15 +14,6 @@ const Billings = () => {
     const [emailTo, setEmailTo] = useState('');
     const [emailSending, setEmailSending] = useState(false);
     const [emailResult, setEmailResult] = useState(null); // { success, message, previewUrl }
-
-    // Form State for Manual Bill Generation
-    const [manualBill, setManualBill] = useState({
-        customerName: '',
-        customerPhone: '',
-        soldBy: '',
-        paymentMethod: 'cash',
-        items: [{ productName: '', quantity: 1, price: 0 }]
-    });
 
     useEffect(() => {
         fetchData();
@@ -40,12 +29,6 @@ const Billings = () => {
             setSales(salesRes.data || []);
             setUsers(usersRes.data || []);
             setProducts(productsRes.data || []);
-
-            // Set default salesperson to the first user or 'admin' 
-            // if we have users, usually the logged-in user, but for now just the first one.
-            if (usersRes.data && usersRes.data.length > 0) {
-                setManualBill(prev => ({ ...prev, soldBy: usersRes.data[0]._id }));
-            }
         } catch (err) {
             console.error('Error fetching billing data:', err);
         }
@@ -98,53 +81,13 @@ const Billings = () => {
         }
     };
 
-    // --- History View Functions ---
-    const filteredSales = sales.filter(s =>
-        (s.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (s.id || s._id || '').toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    // --- Generate View Functions ---
-    const handleManualItemChange = (index, field, value) => {
-        const updatedItems = [...manualBill.items];
-        updatedItems[index][field] = field === 'quantity' || field === 'price'
-            ? parseFloat(value) || 0
-            : value;
-        setManualBill({ ...manualBill, items: updatedItems });
-    };
-
-    const addManualItem = () => {
-        setManualBill({ ...manualBill, items: [...manualBill.items, { productName: '', quantity: 1, price: 0 }] });
-    };
-
-    const removeManualItem = (index) => {
-        const updatedItems = manualBill.items.filter((_, i) => i !== index);
-        setManualBill({ ...manualBill, items: updatedItems });
-    };
-
-    const calculateManualTotal = () => {
-        return manualBill.items.reduce((acc, item) => acc + (Number(item.price) * Number(item.quantity)), 0);
-    };
-
-    const handleGenerateBill = () => {
-        if (!manualBill.customerName) return alert("Please enter Customer Name");
-        if (manualBill.items.some(item => !item.productName || item.quantity <= 0 || item.price <= 0)) {
-            return alert("Please ensure all items have a description, valid quantity, and price.");
-        }
-
-        const generatedBill = {
-            _id: `INV-${Date.now().toString().slice(-6)}`,
-            date: new Date().toISOString(),
-            customerName: manualBill.customerName,
-            customerPhone: manualBill.customerPhone,
-            paymentMethod: manualBill.paymentMethod,
-            soldBy: manualBill.soldBy,
-            totalAmount: calculateManualTotal(),
-            items: manualBill.items
-        };
-
-        setSelectedBill(generatedBill);
-    };
+    const filteredSales = sales.filter(s => {
+        const search = searchTerm.toLowerCase();
+        return (
+            (s.customerName || '').toLowerCase().includes(search) ||
+            String(s.id || s._id || '').toLowerCase().includes(search)
+        );
+    });
 
     return (
         <div className="space-y-6">
@@ -164,264 +107,85 @@ const Billings = () => {
                 </h2>
             </div>
 
-            {/* Custom Tabs */}
-            <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-sm border border-white/40 p-1 flex w-max print-hide">
-                <button
-                    onClick={() => setActiveTab('history')}
-                    className={clsx(
-                        "px-6 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2",
-                        activeTab === 'history' ? "bg-white border border-gray-100 shadow-sm text-primary-600" : "text-gray-500 hover:text-gray-700 hover:bg-slate-100 dark:hover:bg-slate-100 dark:bg-white/50"
-                    )}
-                >
-                    <FileText size={16} /> Invoice History
-                </button>
-                <button
-                    onClick={() => setActiveTab('generate')}
-                    className={clsx(
-                        "px-6 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2",
-                        activeTab === 'generate' ? "bg-white border border-gray-100 shadow-sm text-primary-600" : "text-gray-500 hover:text-gray-700 hover:bg-slate-100 dark:hover:bg-slate-100 dark:bg-white/50"
-                    )}
-                >
-                    <Calculator size={16} /> Generate Invoice
-                </button>
-            </div>
-
-            {activeTab === 'history' && (
-                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/70 backdrop-blur-md rounded-2xl shadow-sm border border-white/40 overflow-hidden print-hide">
-                    <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-slate-100 dark:bg-white/50">
-                        <div className="relative w-72">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-primary-400" size={20} />
-                            <input
-                                type="text"
-                                placeholder="Search by customer or ID..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 rounded-xl border border-blue-100 bg-slate-100 dark:bg-white/50 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-sm"
-                            />
-                        </div>
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white/70 backdrop-blur-md rounded-2xl shadow-sm border border-white/40 overflow-hidden print-hide">
+                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-slate-100 dark:bg-white/50">
+                    <div className="relative w-72">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-primary-400" size={20} />
+                        <input
+                            type="text"
+                            placeholder="Search by customer or ID..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 rounded-xl border border-blue-100 bg-slate-100 dark:bg-white/50 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-sm"
+                        />
                     </div>
+                </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left max-h-[60vh] overflow-y-auto block relative">
-                            <thead className="bg-gray-50/80 sticky top-0 text-gray-500 font-medium text-sm">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left max-h-[60vh] overflow-y-auto block relative">
+                        <thead className="bg-gray-50/80 sticky top-0 text-gray-500 font-medium text-sm">
+                            <tr>
+                                <th className="px-6 py-4 border-b border-gray-100 w-1/4">Invoice ID / Date</th>
+                                <th className="px-6 py-4 border-b border-gray-100 w-1/4">Customer</th>
+                                <th className="px-6 py-4 border-b border-gray-100 w-1/6">Amount</th>
+                                <th className="px-6 py-4 border-b border-gray-100 w-1/6">Salesperson</th>
+                                <th className="px-6 py-4 border-b border-gray-100 w-1/6 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 w-full table">
+                            {filteredSales.length === 0 ? (
                                 <tr>
-                                    <th className="px-6 py-4 border-b border-gray-100 w-1/4">Invoice ID / Date</th>
-                                    <th className="px-6 py-4 border-b border-gray-100 w-1/4">Customer</th>
-                                    <th className="px-6 py-4 border-b border-gray-100 w-1/6">Amount</th>
-                                    <th className="px-6 py-4 border-b border-gray-100 w-1/6">Salesperson</th>
-                                    <th className="px-6 py-4 border-b border-gray-100 w-1/6 text-right">Action</th>
+                                    <td colSpan="5" className="text-center py-12 text-gray-400">
+                                        No sales records found.
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 w-full table">
-                                {filteredSales.length === 0 ? (
-                                    <tr>
-                                        <td colSpan="5" className="text-center py-12 text-gray-400">
-                                            No sales records found.
+                            ) : (
+                                filteredSales.map((sale) => (
+                                    <tr key={sale._id || sale.id} className="hover:bg-blue-50/30 transition-colors">
+                                        <td className="px-6 py-4">
+                                            <div className="font-mono text-xs text-gray-900 mb-1 truncate w-40" title={sale._id || sale.id}>
+                                                #{String(sale._id || sale.id).slice(0, 8)}...
+                                            </div>
+                                            <div className="text-sm text-gray-500 flex items-center gap-1">
+                                                <Calendar size={12} />
+                                                {new Date(sale.date || sale.created_at).toLocaleString()}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="font-medium text-gray-900">{sale.customerName || 'Walk-in'}</div>
+                                            {sale.customerPhone && <div className="text-xs text-gray-500">{sale.customerPhone}</div>}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="font-bold text-primary-600">{formatPrice(sale.totalAmount)}</div>
+                                            <div className="text-xs text-gray-500 capitalize">{sale.paymentMethod || 'Cash'}</div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-1.5 text-sm text-gray-700">
+                                                <User size={14} className="text-primary-500" />
+                                                {getSalespersonName(sale.soldBy)}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedBill(sale);
+                                                    setEmailTo('');
+                                                    setEmailResult(null);
+                                                }}
+                                                className="bg-primary-50 text-primary-600 hover:bg-primary-600 hover:text-slate-900 dark:text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all inline-flex items-center gap-1.5"
+                                            >
+                                                <FileDown size={16} />
+                                                View Bill
+                                            </button>
                                         </td>
                                     </tr>
-                                ) : (
-                                    filteredSales.map((sale) => (
-                                        <tr key={sale._id || sale.id} className="hover:bg-blue-50/30 transition-colors">
-                                            <td className="px-6 py-4">
-                                                <div className="font-mono text-xs text-gray-900 mb-1 truncate w-40" title={sale._id || sale.id}>
-                                                    #{String(sale._id || sale.id).slice(0, 8)}...
-                                                </div>
-                                                <div className="text-sm text-gray-500 flex items-center gap-1">
-                                                    <Calendar size={12} />
-                                                    {new Date(sale.date || sale.created_at).toLocaleString()}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="font-medium text-gray-900">{sale.customerName || 'Walk-in'}</div>
-                                                {sale.customerPhone && <div className="text-xs text-gray-500">{sale.customerPhone}</div>}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="font-bold text-primary-600">{formatPrice(sale.totalAmount)}</div>
-                                                <div className="text-xs text-gray-500 capitalize">{sale.paymentMethod || 'Cash'}</div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-1.5 text-sm text-gray-700">
-                                                    <User size={14} className="text-primary-500" />
-                                                    {getSalespersonName(sale.soldBy)}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <button
-                                                    onClick={() => {
-                                        setSelectedBill(sale);
-                                        setEmailTo('');
-                                        setEmailResult(null);
-                                    }}
-                                                    className="bg-primary-50 text-primary-600 hover:bg-primary-600 hover:text-slate-900 dark:text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-all inline-flex items-center gap-1.5"
-                                                >
-                                                    <FileDown size={16} />
-                                                    View Bill
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </motion.div>
-            )}
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </motion.div>
 
-            {activeTab === 'generate' && (
-                <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="grid lg:grid-cols-3 gap-6 print-hide">
-                    {/* Form Section */}
-                    <div className="lg:col-span-2 space-y-6">
-                        {/* Customer Details */}
-                        <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-sm border border-white/40 p-6">
-                            <h3 className="text-lg font-bold text-gray-800 mb-4">Customer Details</h3>
-                            <div className="grid md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                                    <input
-                                        type="text"
-                                        value={manualBill.customerName}
-                                        onChange={(e) => setManualBill({ ...manualBill, customerName: e.target.value })}
-                                        className="w-full px-4 py-2 bg-white border border-gray-200 focus:border-primary-500 rounded-xl outline-none"
-                                        placeholder=""
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                                    <input
-                                        type="tel"
-                                        value={manualBill.customerPhone}
-                                        onChange={(e) => setManualBill({ ...manualBill, customerPhone: e.target.value })}
-                                        className="w-full px-4 py-2 bg-white border border-gray-200 focus:border-primary-500 rounded-xl outline-none"
-                                        placeholder=""
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Salesperson</label>
-                                    <select
-                                        value={manualBill.soldBy}
-                                        onChange={(e) => setManualBill({ ...manualBill, soldBy: e.target.value })}
-                                        className="w-full px-4 py-2 bg-white border border-gray-200 focus:border-primary-500 rounded-xl outline-none"
-                                    >
-                                        <option value="admin">Store Admin</option>
-                                        {users.map(u => (
-                                            <option key={u._id} value={u._id}>{u.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-                                    <select
-                                        value={manualBill.paymentMethod}
-                                        onChange={(e) => setManualBill({ ...manualBill, paymentMethod: e.target.value })}
-                                        className="w-full px-4 py-2 bg-white border border-gray-200 focus:border-primary-500 rounded-xl outline-none"
-                                    >
-                                        <option value="cash">Cash</option>
-                                        <option value="card">Card</option>
-                                        <option value="online">Online Transfer</option>
-                                        <option value="unpaid">Unpaid / Term</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Line Items */}
-                        <div className="bg-white/70 backdrop-blur-md rounded-2xl shadow-sm border border-white/40 p-6">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-bold text-gray-800">Line Items</h3>
-                                <button
-                                    onClick={addManualItem}
-                                    className="bg-primary-50 text-primary-600 hover:bg-primary-100 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1"
-                                >
-                                    <Plus size={16} /> Add Item
-                                </button>
-                            </div>
-
-                            <div className="space-y-3">
-                                {manualBill.items.map((item, idx) => (
-                                    <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} key={idx} className="flex gap-3 items-end">
-                                        <div className="flex-1">
-                                            <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
-                                            <input
-                                                type="text"
-                                                value={item.productName}
-                                                onChange={(e) => handleManualItemChange(idx, 'productName', e.target.value)}
-                                                className="w-full px-3 py-2 bg-white border border-gray-200 focus:border-primary-500 rounded-xl outline-none text-sm"
-                                                placeholder="Service or Product Name"
-                                            />
-                                        </div>
-                                        <div className="w-24">
-                                            <label className="block text-xs font-medium text-gray-500 mb-1">Qty</label>
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                value={item.quantity}
-                                                onChange={(e) => handleManualItemChange(idx, 'quantity', e.target.value)}
-                                                className="w-full px-3 py-2 bg-white border border-gray-200 focus:border-primary-500 rounded-xl outline-none text-sm text-center"
-                                            />
-                                        </div>
-                                        <div className="w-32">
-                                            <label className="block text-xs font-medium text-gray-500 mb-1">Unit Price</label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                step="0.01"
-                                                value={item.price}
-                                                onChange={(e) => handleManualItemChange(idx, 'price', e.target.value)}
-                                                className="w-full px-3 py-2 bg-white border border-gray-200 focus:border-primary-500 rounded-xl outline-none text-sm text-right"
-                                            />
-                                        </div>
-                                        <button
-                                            onClick={() => removeManualItem(idx)}
-                                            disabled={manualBill.items.length === 1}
-                                            className="p-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Summary Section */}
-                    <div>
-                        <div className="bg-blue-50 border border-blue-200 rounded-2xl shadow-lg p-6 text-gray-800 sticky top-28">
-                            <h3 className="font-bold mb-6 text-blue-700 flex items-center gap-2">
-                                <Calculator size={20} /> Invoice Summary
-                            </h3>
-
-                            <div className="space-y-3 mb-6 opacity-90">
-                                {manualBill.items.map((item, idx) => (
-                                    <div key={idx} className="flex justify-between text-sm text-gray-700">
-                                        <span className="truncate pr-4 flex-1">{item.productName || 'Unnamed Item'}</span>
-                                        <span>{formatPrice(item.quantity * item.price)}</span>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div className="border-t border-blue-200 pt-4 mb-8">
-                                <div className="flex justify-between items-end">
-                                    <span className="text-blue-500 text-sm font-medium">Total Amount</span>
-                                    <span className="text-3xl font-black text-blue-700">{formatPrice(calculateManualTotal())}</span>
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={handleGenerateBill}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-500/30 active:scale-[0.98] flex items-center justify-center gap-2"
-                            >
-                                <FileText size={18} />
-                                Generate Final Bill
-                            </button>
-                            <p className="text-xs text-center text-blue-400 mt-4 leading-relaxed">
-                                This will format the details into a printable invoice without affecting store inventory.
-                            </p>
-                        </div>
-                    </div>
-                </motion.div>
-            )}
-
-            {/* Bill Modal (Used by both History and Generate Tabs) */}
             <AnimatePresence>
                 {selectedBill && (
                     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 print-hide">
@@ -431,7 +195,6 @@ const Billings = () => {
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
                             className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden"
                         >
-                            {/* Modal Header */}
                             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 print-hide">
                                 <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                                     <Printer size={18} className="text-primary-600" /> Print Preview
@@ -452,10 +215,8 @@ const Billings = () => {
                                 </div>
                             </div>
 
-                            {/* Printable Area - Laser Mobile Invoice Template */}
                             <div id="printable-bill" className="flex-1 overflow-y-auto bg-white text-gray-800" style={{ fontFamily: 'Arial, sans-serif', fontSize: '12px' }}>
                                 <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto' }}>
-
                                     {/* ── HEADER ── */}
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #333', paddingBottom: '10px', marginBottom: '10px' }}>
                                         {/* Left: Logo + Contact */}

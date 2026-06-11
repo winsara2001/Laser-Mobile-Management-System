@@ -82,7 +82,17 @@ exports.getProduct = async (req, res) => {
 // @route   POST api/inventory
 // @access  Private (Admin/Manager)
 exports.addProduct = async (req, res) => {
-    const { name, brand, category, price, costPrice, stock, supplier, description, sku, imageUrl, barcode } = req.body;
+    const { name, brand, category, price, costPrice, stock, supplier, description, specifications, sku, barcode, variants, promotion } = req.body;
+    let finalImageUrl = req.body.imageUrl || '';
+    if (req.files && req.files.length > 0) {
+        let categoryFolder = 'Other';
+        if (category === 'mobile') categoryFolder = 'Mobile Phones';
+        else if (category === 'accessory') categoryFolder = 'Accessory';
+        else if (category === 'part') categoryFolder = 'Spare Parts';
+        const safeName = (name || 'Unnamed Product').replace(/[<>:"/\\|?*]+/g, '').trim();
+        const fileUrls = req.files.map(f => `/src/Images/${categoryFolder}/${safeName}/${f.originalname.replace(/\s+/g, '-')}`);
+        finalImageUrl = finalImageUrl ? finalImageUrl + ',' + fileUrls.join(',') : fileUrls.join(',');
+    }
 
     try {
         const { data: product, error } = await supabase
@@ -94,8 +104,12 @@ exports.addProduct = async (req, res) => {
                 price: parseFloat(price) || 0,
                 stock: parseInt(stock) || 0,
                 supplier: supplier || null,
-                imageUrl: imageUrl || null,
-                barcode: barcode || null
+                imageUrl: finalImageUrl || null,
+                barcode: barcode || null,
+                description: description || null,
+                specifications: specifications || null,
+                variants: variants || null,
+                promotion: promotion || null
             }])
             .select();
 
@@ -126,16 +140,29 @@ exports.addProduct = async (req, res) => {
 // @route   PUT api/inventory/:id
 // @access  Private (Admin/Manager)
 exports.updateProduct = async (req, res) => {
-    const { name, brand, category, price, costPrice, stock, supplier, description, sku, imageUrl, barcode } = req.body;
-
+    const { name, brand, category, price, costPrice, stock, supplier, description, specifications, sku, barcode, variants, promotion } = req.body;
+    let finalImageUrl = req.body.imageUrl || '';
+    if (req.files && req.files.length > 0) {
+        let categoryFolder = 'Other';
+        if (category === 'mobile') categoryFolder = 'Mobile Phones';
+        else if (category === 'accessory') categoryFolder = 'Accessory';
+        else if (category === 'part') categoryFolder = 'Spare Parts';
+        const safeName = (name || 'Unnamed Product').replace(/[<>:"/\\|?*]+/g, '').trim();
+        const fileUrls = req.files.map(f => `/src/Images/${categoryFolder}/${safeName}/${f.originalname.replace(/\s+/g, '-')}`);
+        finalImageUrl = finalImageUrl ? finalImageUrl + ',' + fileUrls.join(',') : fileUrls.join(',');
+    }
     const productFields = {};
     if (name !== undefined) productFields.name = name;
     if (category !== undefined) productFields.category = category;
     if (price !== undefined) productFields.price = parseFloat(price);
     if (stock !== undefined) productFields.stock = parseInt(stock);
     if (supplier !== undefined) productFields.supplier = supplier;
-    if (imageUrl !== undefined) productFields.imageUrl = imageUrl;
+    if (finalImageUrl) productFields.imageUrl = finalImageUrl;
     if (barcode !== undefined) productFields.barcode = barcode;
+    if (description !== undefined) productFields.description = description;
+    if (specifications !== undefined) productFields.specifications = specifications;
+    if (variants !== undefined) productFields.variants = variants;
+    if (promotion !== undefined) productFields.promotion = promotion;
 
     try {
         const { data: oldProduct } = await supabase.from('products').select('stock').eq('id', req.params.id).single();
